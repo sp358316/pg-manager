@@ -1,0 +1,551 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+import {
+  getAuth,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signOut,
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+const monthKey = getMonthKey(new Date());
+
+let firebaseApp;
+let auth;
+let currentUser = null;
+let state = { profile: null, users: [], rooms: [], payments: [] };
+let searchTerm = "";
+
+const authScreen = document.querySelector("#authScreen");
+const appShell = document.querySelector("#appShell");
+const adminView = document.querySelector("#adminView");
+const residentView = document.querySelector("#residentView");
+const adminNav = document.querySelector("#adminNav");
+const residentNav = document.querySelector("#residentNav");
+const emptyTemplate = document.querySelector("#emptyStateTemplate");
+const toast = document.querySelector("#toast");
+
+document.querySelector("#todayLabel").textContent = new Intl.DateTimeFormat("en-IN", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+}).format(new Date());
+
+document.querySelector("#manualResidentForm").joiningDate.valueAsDate = new Date();
+document.querySelector("#paymentForm").paidOn.valueAsDate = new Date();
+
+document.querySelector("#loginForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  await withButtonLock(form.querySelector("button[type='submit']"), "Logging in...", async () => {
+    await signInWithEmailAndPassword(auth, normalizeEmail(data.get("email")), data.get("password"));
+  });
+});
+
+document.querySelector("#forgotPasswordButton").addEventListener("click", async () => {
+  const email = normalizeEmail(document.querySelector("#loginForm").email.value);
+  if (!email) {
+    showToast("Enter your Gmail first, then click forgot password.", "error");
+    return;
+  }
+
+  try {
+    await sendPasswordResetEmail(auth, email);
+    showToast("Password reset email sent. Please check Gmail.");
+  } catch (error) {
+    showToast(getFriendlyError(error), "error");
+  }
+});
+
+document.querySelector("#logoutButton").addEventListener("click", async () => {
+  await signOut(auth);
+});
+
+document.querySelector("#manualResidentForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  await withButtonLock(form.querySelector("button[type='submit']"), "Creating...", async () => {
+    await api("/api/admin/residents", {
+      method: "POST",
+      body: formToJson(form),
+    });
+    form.reset();
+    form.joiningDate.valueAsDate = new Date();
+    form.dueDay.value = 5;
+    await loadPortal();
+    showToast("Resident account created. Share the temporary password.");
+  });
+});
+
+document.querySelector("#clearForm").addEventListener("click", () => {
+  const form = document.querySelector("#manualResidentForm");
+  form.reset();
+  form.joiningDate.valueAsDate = new Date();
+  form.dueDay.value = 5;
+});
+
+document.querySelector("#searchInput").addEventListener("input", (event) => {
+  searchTerm = event.target.value.toLowerCase();
+  renderResidents();
+});
+
+document.querySelector("#residentRows").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-remove]");
+  if (!button) return;
+  const user = state.users.find((item) => item.id === button.dataset.remove);
+  if (!user || !confirm(`Mark ${user.name} as left?`)) return;
+
+  await withButtonLock(button, "Removing...", async () => {
+    await api(`/api/admin/residents/${user.id}/remove`, { method: "POST" });
+    await loadPortal();
+    showToast("Resident removed from active list.");
+  });
+});
+
+document.querySelector("#approvalList").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-payment-action]");
+  if (!button) return;
+  const action = button.dataset.paymentAction;
+  await withButtonLock(button, action === "approve" ? "Approving..." : "Rejecting...", async () => {
+    await api(`/api/payments/${button.dataset.paymentId}/${action}`, { method: "POST" });
+    await loadPortal();
+    showToast(`Payment ${action === "approve" ? "approved" : "rejected"}.`);
+  });
+});
+
+document.querySelector("#notifyButton").addEventListener("click", () => {
+  const dueResidents = getActiveResidents().filter(isPaymentDue);
+  if (!dueResidents.length) {
+    showToast("All active residents are paid or awaiting approval for this month.");
+    return;
+  }
+
+  alert(
+    `Send reminders to ${dueResidents.length} resident(s):\n\n${dueResidents
+      .map((resident) => `${resident.name} - ${resident.room}/${resident.bed} - Rs ${formatNumber(resident.rent)}`)
+      .join("\n")}`
+  );
+});
+
+document.querySelector("#paymentForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  await withButtonLock(form.querySelector("button[type='submit']"), "Submitting...", async () => {
+    await api("/api/payments", {
+      method: "POST",
+      body: formToJson(form),
+    });
+    form.reset();
+    form.paidOn.valueAsDate = new Date();
+    await loadPortal();
+    showToast("Payment submitted. Admin will validate and approve it manually.");
+  });
+});
+
+await boot();
+
+async function boot() {
+  try {
+    const configResponse = await fetch("/api/firebase-config");
+    if (!configResponse.ok) throw new Error("Firebase client config is missing.");
+    firebaseApp = initializeApp(await configResponse.json());
+    auth = getAuth(firebaseApp);
+  } catch (error) {
+    showSetupError(error.message);
+    return;
+  }
+
+  onAuthStateChanged(auth, async (user) => {
+    currentUser = user;
+    if (!user) {
+      state = { profile: null, users: [], rooms: [], payments: [] };
+      renderLoggedOut();
+      return;
+    }
+
+    try {
+      await loadPortal();
+    } catch (error) {
+      showToast(getFriendlyError(error), "error");
+      await signOut(auth);
+    }
+  });
+}
+
+async function loadPortal() {
+  state = await api("/api/bootstrap");
+  renderPortal();
+}
+
+function renderLoggedOut() {
+  authScreen.classList.remove("hidden");
+  appShell.classList.add("hidden");
+  document.querySelector("#loginForm").reset();
+}
+
+function renderPortal() {
+  const profile = state.profile;
+  if (!profile) {
+    renderLoggedOut();
+    return;
+  }
+
+  authScreen.classList.add("hidden");
+  appShell.classList.remove("hidden");
+  document.querySelector("#signedInName").textContent = profile.name || currentUser.email;
+  document.querySelector("#signedInEmail").textContent = currentUser.email;
+
+  const isAdmin = profile.role === "admin";
+  document.querySelector("#roleLabel").textContent = isAdmin ? "Admin portal" : "Resident portal";
+  adminView.classList.toggle("hidden", !isAdmin);
+  residentView.classList.toggle("hidden", isAdmin);
+  adminNav.classList.toggle("hidden", !isAdmin);
+  residentNav.classList.toggle("hidden", isAdmin);
+
+  if (isAdmin) renderAdmin();
+  else renderResident();
+}
+
+function renderAdmin() {
+  renderAdminStats();
+  renderNotifications();
+  renderResidents();
+  renderApprovals();
+  renderRooms();
+}
+
+function renderAdminStats() {
+  const activeResidents = getActiveResidents();
+  const approvedPayments = state.payments.filter((payment) => payment.month === monthKey && payment.status === "approved");
+  const pendingPayments = state.payments.filter((payment) => payment.status === "pending").length;
+  const bedCount = state.rooms.reduce((sum, room) => sum + room.beds.length, 0);
+  const occupiedRooms = new Set(activeResidents.map((resident) => resident.room));
+  const approvedCollection = approvedPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+
+  document.querySelector("#totalResidents").textContent = activeResidents.length;
+  document.querySelector("#roomsOccupied").textContent = occupiedRooms.size;
+  document.querySelector("#roomCapacity").textContent = `${activeResidents.length} of ${bedCount} beds occupied`;
+  document.querySelector("#pendingApprovals").textContent = pendingPayments;
+  document.querySelector("#monthlyCollection").textContent = `Rs ${formatNumber(approvedCollection)}`;
+}
+
+function renderNotifications() {
+  const list = document.querySelector("#notificationList");
+  list.replaceChildren();
+  const dueResidents = getActiveResidents().filter(isPaymentDue);
+  if (!dueResidents.length) {
+    list.append(emptyNotice("No reminders pending", "All active residents are paid, awaiting approval, or not due yet."));
+    return;
+  }
+
+  dueResidents.forEach((resident) => {
+    const item = document.createElement("article");
+    item.className = "detail-card";
+    item.innerHTML = `
+      <div class="detail-card-head">
+        <div>
+          <strong>${escapeHtml(resident.name)}</strong>
+          <p>Room ${escapeHtml(resident.room)} / ${escapeHtml(resident.bed)} - due day ${resident.dueDay}</p>
+        </div>
+        <span class="amount">Rs ${formatNumber(resident.rent)}</span>
+      </div>
+    `;
+    list.append(item);
+  });
+}
+
+function renderResidents() {
+  const body = document.querySelector("#residentRows");
+  body.replaceChildren();
+  const filtered = getActiveResidents().filter((resident) => {
+    const searchable = `${resident.name} ${resident.email} ${resident.room} ${resident.phone}`.toLowerCase();
+    return searchable.includes(searchTerm);
+  });
+
+  if (!filtered.length) {
+    const row = document.createElement("tr");
+    row.innerHTML = `<td colspan="8"></td>`;
+    row.querySelector("td").append(emptyTemplate.content.cloneNode(true));
+    body.append(row);
+    return;
+  }
+
+  filtered.forEach((resident) => {
+    const status = getResidentPaymentStatus(resident);
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><strong>${escapeHtml(resident.name)}</strong><br /><small>${escapeHtml(resident.email)}</small></td>
+      <td>${escapeHtml(resident.room)} / ${escapeHtml(resident.bed)}<br /><small>Joined ${formatDate(resident.joiningDate)}</small></td>
+      <td>${escapeHtml(resident.phone)}</td>
+      <td>${maskAadhaar(resident.aadhaar)}</td>
+      <td>Rs ${formatNumber(resident.rent)}<br /><small>Due day ${resident.dueDay}</small></td>
+      <td>Rs ${formatNumber(resident.deposit)}</td>
+      <td><span class="status-pill ${status.className}">${status.label}</span></td>
+      <td><button class="danger-button" type="button" data-remove="${resident.id}">Remove</button></td>
+    `;
+    body.append(row);
+  });
+}
+
+function renderApprovals() {
+  const list = document.querySelector("#approvalList");
+  list.replaceChildren();
+  const pending = state.payments.filter((payment) => payment.status === "pending");
+
+  if (!pending.length) {
+    list.append(emptyNotice("No payment approvals", "Resident payment submissions will appear here."));
+    return;
+  }
+
+  pending.forEach((payment) => {
+    const resident = state.users.find((user) => user.id === payment.residentId);
+    const card = document.createElement("article");
+    card.className = "detail-card";
+    card.innerHTML = `
+      <div class="detail-card-head">
+        <div>
+          <strong>${escapeHtml(resident?.name || "Unknown resident")}</strong>
+          <p>${escapeHtml(payment.method)} - ${escapeHtml(payment.transactionId)} - ${formatDate(payment.paidOn)}</p>
+        </div>
+        <span class="amount">Rs ${formatNumber(payment.amount)}</span>
+      </div>
+      <p class="muted-text">${escapeHtml(payment.note || "No note added.")}</p>
+      <div class="row-actions">
+        <button class="small-button" type="button" data-payment-action="approve" data-payment-id="${payment.id}">Approve payment</button>
+        <button class="danger-button" type="button" data-payment-action="reject" data-payment-id="${payment.id}">Reject</button>
+      </div>
+    `;
+    list.append(card);
+  });
+}
+
+function renderRooms() {
+  const grid = document.querySelector("#roomGrid");
+  grid.replaceChildren();
+  if (!state.rooms.length) {
+    grid.append(emptyNotice("No rooms yet", "Rooms are created automatically when the admin adds residents."));
+    return;
+  }
+
+  state.rooms
+    .slice()
+    .sort((a, b) => a.number.localeCompare(b.number))
+    .forEach((room) => {
+      const card = document.createElement("article");
+      card.className = "room-card";
+      const occupied = room.beds.filter((bed) => isBedTaken(room.number, bed));
+      card.innerHTML = `
+        <strong>Room ${escapeHtml(room.number)}</strong>
+        <p>${occupied.length} of ${room.beds.length} beds occupied</p>
+        <div class="room-beds">
+          ${room.beds
+            .map((bed) => {
+              const resident = getActiveResidents().find((item) => item.room === room.number && item.bed === bed);
+              return `<span class="bed-chip ${resident ? "occupied" : ""}">${escapeHtml(bed)}${
+                resident ? ` - ${escapeHtml(resident.name)}` : " - empty"
+              }</span>`;
+            })
+            .join("")}
+        </div>
+      `;
+      grid.append(card);
+    });
+}
+
+function renderResident() {
+  const user = state.profile;
+  const paymentStatus = getResidentPaymentStatus(user);
+
+  document.querySelector("#residentWelcome").textContent = `Hi, ${user.name}`;
+  document.querySelector("#residentStatus").textContent = "Room assigned";
+  document.querySelector("#residentStatus").className = "status-pill paid";
+  document.querySelector("#myRoom").textContent = `${user.room} / ${user.bed}`;
+  document.querySelector("#myRent").textContent = `Rs ${formatNumber(user.rent)}`;
+  document.querySelector("#myDueDate").textContent = `Pay by day ${user.dueDay} every month`;
+  document.querySelector("#myDeposit").textContent = `Rs ${formatNumber(user.deposit)}`;
+  document.querySelector("#myPaymentStatus").textContent = paymentStatus.label;
+  document.querySelector("#paymentForm").amount.value = user.rent || "";
+
+  renderProfile(user);
+  renderMyPayments(user);
+}
+
+function renderProfile(user) {
+  document.querySelector("#residentProfile").innerHTML = `
+    <div><span>Name</span><strong>${escapeHtml(user.name)}</strong></div>
+    <div><span>Gmail</span><strong>${escapeHtml(user.email)}</strong></div>
+    <div><span>Phone</span><strong>${escapeHtml(user.phone || "-")}</strong></div>
+    <div><span>Aadhaar</span><strong>${maskAadhaar(user.aadhaar)}</strong></div>
+    <div><span>Joining</span><strong>${formatDate(user.joiningDate)}</strong></div>
+    <div><span>Address</span><strong>${escapeHtml(user.address || "-")}</strong></div>
+  `;
+}
+
+function renderMyPayments(user) {
+  const list = document.querySelector("#myPaymentHistory");
+  list.replaceChildren();
+  const payments = state.payments.filter((payment) => payment.residentId === user.id);
+
+  if (!payments.length) {
+    list.append(emptyNotice("No payments submitted", "Submit rent payment and wait for admin approval."));
+    return;
+  }
+
+  payments
+    .slice()
+    .reverse()
+    .forEach((payment) => {
+      const card = document.createElement("article");
+      card.className = "detail-card";
+      card.innerHTML = `
+        <div class="detail-card-head">
+          <div>
+            <strong>${getMonthLabel(payment.month)}</strong>
+            <p>${escapeHtml(payment.method)} - ${escapeHtml(payment.transactionId)} - ${formatDate(payment.paidOn)}</p>
+          </div>
+          <span class="status-pill ${payment.status === "approved" ? "paid" : payment.status === "rejected" ? "due" : "waiting"}">${
+        payment.status
+      }</span>
+        </div>
+        <p class="muted-text">Amount: Rs ${formatNumber(payment.amount)}</p>
+      `;
+      list.append(card);
+    });
+}
+
+function getResidentPaymentStatus(resident) {
+  if (!resident) return { label: "Pending", className: "due" };
+  const payments = state.payments.filter((payment) => payment.residentId === resident.id && payment.month === monthKey);
+  if (payments.some((payment) => payment.status === "approved")) return { label: "Paid", className: "paid" };
+  if (payments.some((payment) => payment.status === "pending")) return { label: "Waiting approval", className: "waiting" };
+  return isPaymentDue(resident) ? { label: "Due", className: "due" } : { label: "Upcoming", className: "waiting" };
+}
+
+function isPaymentDue(resident) {
+  return new Date().getDate() >= Number(resident.dueDay || 1) && getResidentPaymentStatusNoDueLoop(resident) !== "covered";
+}
+
+function getResidentPaymentStatusNoDueLoop(resident) {
+  const payments = state.payments.filter((payment) => payment.residentId === resident.id && payment.month === monthKey);
+  return payments.some((payment) => payment.status === "approved" || payment.status === "pending") ? "covered" : "open";
+}
+
+function isBedTaken(room, bed) {
+  return getActiveResidents().some((resident) => resident.room === room && resident.bed === bed);
+}
+
+function getActiveResidents() {
+  return state.users.filter((user) => user.role === "resident" && user.status === "active");
+}
+
+async function api(path, options = {}) {
+  const headers = new Headers(options.headers || {});
+  headers.set("Content-Type", "application/json");
+  const token = currentUser ? await currentUser.getIdToken() : null;
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  const response = await fetch(path, {
+    ...options,
+    headers,
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || "Request failed.");
+  return payload;
+}
+
+function formToJson(form) {
+  const data = new FormData(form);
+  return Object.fromEntries([...data.entries()].map(([key, value]) => [key, typeof value === "string" ? value.trim() : value]));
+}
+
+async function withButtonLock(button, label, task) {
+  const original = button.textContent;
+  button.disabled = true;
+  button.textContent = label;
+  try {
+    await task();
+  } catch (error) {
+    showToast(getFriendlyError(error), "error");
+  } finally {
+    button.disabled = false;
+    button.textContent = original;
+  }
+}
+
+function showSetupError(message) {
+  authScreen.classList.remove("hidden");
+  appShell.classList.add("hidden");
+  document.querySelector(".auth-card").innerHTML = `
+    <div class="empty-state">
+      <strong>Firebase setup needed</strong>
+      <p>${escapeHtml(message)} Add Firebase environment variables and restart the server.</p>
+    </div>
+  `;
+}
+
+function showToast(message, type = "success") {
+  toast.textContent = message;
+  toast.className = `toast show ${type}`;
+  window.setTimeout(() => toast.classList.remove("show"), 3200);
+}
+
+function getFriendlyError(error) {
+  const message = error?.message || String(error);
+  const authError = error?.code || "";
+  if (authError.includes("auth/invalid-credential")) return "Email or password is incorrect.";
+  if (authError.includes("auth/user-not-found")) return "No account exists for this Gmail.";
+  if (authError.includes("auth/email-already-exists") || message.includes("already exists")) return "This Gmail is already added.";
+  if (authError.includes("auth/weak-password")) return "Password must be at least 6 characters.";
+  return message;
+}
+
+function getMonthKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function getMonthLabel(value) {
+  const [year, month] = String(value).split("-");
+  return new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric" }).format(new Date(Number(year), Number(month) - 1));
+}
+
+function formatDate(value) {
+  if (!value) return "not set";
+  return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
+}
+
+function formatNumber(value) {
+  return new Intl.NumberFormat("en-IN").format(Number(value || 0));
+}
+
+function maskAadhaar(value) {
+  const digits = onlyDigits(value);
+  if (digits.length < 4) return "****";
+  return `**** **** ${digits.slice(-4)}`;
+}
+
+function onlyDigits(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function emptyNotice(title, body) {
+  const item = document.createElement("article");
+  item.className = "empty-state";
+  item.innerHTML = `<strong>${escapeHtml(title)}</strong><p>${escapeHtml(body)}</p>`;
+  return item;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}

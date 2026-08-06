@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PG Manager Portal</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <section class="auth-screen" id="authScreen">
+      <div class="auth-copy">
+        <div class="brand-row">
+          <div class="brand-mark">PG</div>
+          <div>
+            <h1>PG Manager</h1>
+            <p>Admin-created resident accounts, verified payments, and room occupancy in one place.</p>
+          </div>
+        </div>
+        <div class="auth-feature-grid">
+          <article>
+            <strong>Admin creates users</strong>
+            <span>Residents can log in only after the PG owner adds them.</span>
+          </article>
+          <article>
+            <strong>Temporary password</strong>
+            <span>Admin assigns first password, rent, room, bed, deposit, and due date.</span>
+          </article>
+          <article>
+            <strong>Gmail reset links</strong>
+            <span>Residents can reset their password through Firebase email reset.</span>
+          </article>
+        </div>
+      </div>
+
+      <div class="auth-card">
+        <form id="loginForm" class="auth-form">
+          <h2>Login</h2>
+          <p class="helper-text">Use the Gmail and password given by the admin.</p>
+          <label>
+            Gmail
+            <input name="email" type="email" placeholder="name@gmail.com" required />
+          </label>
+          <label>
+            Password
+            <input name="password" type="password" placeholder="Your password" required />
+          </label>
+          <button class="primary-action full" type="submit">Login</button>
+          <button class="link-button" id="forgotPasswordButton" type="button">Forgot password?</button>
+          <p class="helper-text">Admin must already exist in Firebase Auth and Firestore with role admin.</p>
+        </form>
+      </div>
+    </section>
+
+    <div class="app-shell hidden" id="appShell">
+      <aside class="sidebar" aria-label="PG portal navigation">
+        <div class="brand">
+          <div class="brand-mark">PG</div>
+          <div>
+            <h1>PG Manager</h1>
+            <p id="roleLabel">Portal</p>
+          </div>
+        </div>
+
+        <nav class="nav-list" id="adminNav">
+          <a href="#dashboard" class="nav-link active">Dashboard</a>
+          <a href="#newResident" class="nav-link">Add resident</a>
+          <a href="#residents" class="nav-link">Residents</a>
+          <a href="#approvals" class="nav-link">Approvals</a>
+          <a href="#rooms" class="nav-link">Rooms</a>
+        </nav>
+
+        <nav class="nav-list hidden" id="residentNav">
+          <a href="#residentHome" class="nav-link active">My stay</a>
+          <a href="#payRent" class="nav-link">Pay rent</a>
+          <a href="#paymentHistory" class="nav-link">History</a>
+        </nav>
+
+        <div class="owner-card">
+          <span class="label">Signed in</span>
+          <strong id="signedInName">User</strong>
+          <p id="signedInEmail">email@gmail.com</p>
+          <button class="ghost-button full" id="logoutButton" type="button">Logout</button>
+        </div>
+      </aside>
+
+      <main>
+        <section id="adminView">
+          <header class="topbar">
+            <div>
+              <p class="eyebrow">Today</p>
+              <h2 id="todayLabel">PG operations</h2>
+            </div>
+            <button class="primary-action" id="notifyButton" type="button">
+              <span aria-hidden="true">!</span>
+              Check payment reminders
+            </button>
+          </header>
+
+          <section class="stats-grid" id="dashboard" aria-label="PG summary">
+            <article class="stat">
+              <span>Total residents</span>
+              <strong id="totalResidents">0</strong>
+              <small>Approved active tenants</small>
+            </article>
+            <article class="stat">
+              <span>Room occupancy</span>
+              <strong id="roomsOccupied">0</strong>
+              <small id="roomCapacity">0 of 0 beds occupied</small>
+            </article>
+            <article class="stat alert-stat">
+              <span>Pending payments</span>
+              <strong id="pendingApprovals">0</strong>
+              <small>Waiting for manual validation</small>
+            </article>
+            <article class="stat">
+              <span>Monthly collection</span>
+              <strong id="monthlyCollection">Rs 0</strong>
+              <small>Approved payments this month</small>
+            </article>
+          </section>
+
+          <section class="work-grid">
+            <form class="panel" id="manualResidentForm">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Admin entry</p>
+                  <h3>Add resident and create login</h3>
+                </div>
+                <button class="ghost-button" id="clearForm" type="button">Clear</button>
+              </div>
+
+              <div class="form-grid" id="newResident">
+                <label>Full name <input name="name" type="text" required /></label>
+                <label>Gmail <input name="email" type="email" placeholder="resident@gmail.com" required /></label>
+                <label>Temporary password <input name="password" type="text" minlength="6" placeholder="Minimum 6 characters" required /></label>
+                <label>Mobile number <input name="phone" type="tel" required /></label>
+                <label>Aadhaar number <input name="aadhaar" type="text" inputmode="numeric" maxlength="12" required /></label>
+                <label>Room number <input name="room" type="text" placeholder="A-101" required /></label>
+                <label>Bed <input name="bed" type="text" placeholder="B1" required /></label>
+                <label>Monthly rent <input name="rent" type="number" min="0" step="100" required /></label>
+                <label>Deposit <input name="deposit" type="number" min="0" step="100" required /></label>
+                <label>Joining date <input name="joiningDate" type="date" required /></label>
+                <label>Payment date <input name="dueDay" type="number" min="1" max="28" value="5" required /></label>
+                <label class="wide">Address <textarea name="address" rows="3"></textarea></label>
+              </div>
+
+              <button class="primary-action full" type="submit">Create account and assign room</button>
+              <p class="helper-text">Share the temporary password with the resident. They can reset it by Gmail later.</p>
+            </form>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Notifications</p>
+                  <h3>Monthly payment reminders</h3>
+                </div>
+              </div>
+              <div id="notificationList" class="stack-list"></div>
+            </section>
+          </section>
+
+          <section class="panel" id="residents">
+            <div class="panel-heading table-heading">
+              <div>
+                <p class="eyebrow">People</p>
+                <h3>Resident register</h3>
+              </div>
+              <input id="searchInput" type="search" placeholder="Search name, email, room, phone" />
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Room</th>
+                    <th>Phone</th>
+                    <th>Aadhaar</th>
+                    <th>Rent</th>
+                    <th>Deposit</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="residentRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="work-grid lower-grid">
+            <section class="panel" id="approvals">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Payments</p>
+                  <h3>Manual approval queue</h3>
+                </div>
+              </div>
+              <div id="approvalList" class="stack-list"></div>
+            </section>
+
+            <section class="panel" id="rooms">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Rooms</p>
+                  <h3>Occupancy view</h3>
+                </div>
+              </div>
+              <div id="roomGrid" class="room-grid"></div>
+            </section>
+          </section>
+        </section>
+
+        <section id="residentView" class="hidden">
+          <header class="topbar">
+            <div>
+              <p class="eyebrow">Resident portal</p>
+              <h2 id="residentWelcome">My PG stay</h2>
+            </div>
+            <span class="status-pill" id="residentStatus">Room assigned</span>
+          </header>
+
+          <section class="stats-grid" id="residentHome">
+            <article class="stat">
+              <span>Room / Bed</span>
+              <strong id="myRoom">Waiting</strong>
+              <small>Assigned by admin</small>
+            </article>
+            <article class="stat">
+              <span>Monthly rent</span>
+              <strong id="myRent">Rs 0</strong>
+              <small id="myDueDate">Payment date pending</small>
+            </article>
+            <article class="stat">
+              <span>Deposit</span>
+              <strong id="myDeposit">Rs 0</strong>
+              <small>Security deposit entry</small>
+            </article>
+            <article class="stat alert-stat">
+              <span>Payment status</span>
+              <strong id="myPaymentStatus">Pending</strong>
+              <small>This month</small>
+            </article>
+          </section>
+
+          <section class="work-grid">
+            <form class="panel" id="paymentForm">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Pay online</p>
+                  <h3>Submit rent payment</h3>
+                </div>
+              </div>
+              <div class="form-grid" id="payRent">
+                <label>Amount <input name="amount" type="number" min="1" step="100" required /></label>
+                <label>Payment method
+                  <select name="method" required>
+                    <option value="UPI">UPI</option>
+                    <option value="Card">Card</option>
+                    <option value="Net banking">Net banking</option>
+                    <option value="Cash deposit">Cash deposit</option>
+                  </select>
+                </label>
+                <label>Transaction ID <input name="transactionId" type="text" placeholder="UPI123456" required /></label>
+                <label>Payment date <input name="paidOn" type="date" required /></label>
+                <label class="wide">Note <textarea name="note" rows="3" placeholder="Bank name, screenshot note, or message"></textarea></label>
+              </div>
+              <button class="primary-action full" type="submit">Send for admin approval</button>
+              <p class="helper-text">This records your payment request. Admin will validate it manually.</p>
+            </form>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Profile</p>
+                  <h3>Resident details</h3>
+                </div>
+              </div>
+              <div id="residentProfile" class="profile-list"></div>
+            </section>
+          </section>
+
+          <section class="panel" id="paymentHistory">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">History</p>
+                <h3>My payment records</h3>
+              </div>
+            </div>
+            <div id="myPaymentHistory" class="stack-list"></div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <template id="emptyStateTemplate">
+      <div class="empty-state">
+        <strong>No records yet</strong>
+        <p>New records will appear here automatically.</p>
+      </div>
+    </template>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
