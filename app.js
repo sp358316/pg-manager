@@ -275,14 +275,14 @@ function renderResidents() {
     const status = getResidentPaymentStatus(resident);
     const row = document.createElement("tr");
     row.innerHTML = `
-      <td><strong>${escapeHtml(resident.name)}</strong><br /><small>${escapeHtml(resident.email)}</small></td>
-      <td>${escapeHtml(resident.room)} / ${escapeHtml(resident.bed)}<br /><small>Joined ${formatDate(resident.joiningDate)}</small></td>
-      <td>${escapeHtml(resident.phone)}</td>
-      <td>${maskAadhaar(resident.aadhaar)}</td>
-      <td>Rs ${formatNumber(resident.rent)}<br /><small>Due day ${resident.dueDay}</small></td>
-      <td>Rs ${formatNumber(resident.deposit)}</td>
-      <td><span class="status-pill ${status.className}">${status.label}</span></td>
-      <td><button class="danger-button" type="button" data-remove="${resident.id}">Remove</button></td>
+      <td data-label="Name"><strong>${escapeHtml(resident.name)}</strong><br /><small>${escapeHtml(resident.email)}</small></td>
+      <td data-label="Room">${escapeHtml(resident.room)} / ${escapeHtml(resident.bed)}<br /><small>Joined ${formatDate(resident.joiningDate)}</small></td>
+      <td data-label="Phone">${escapeHtml(resident.phone)}</td>
+      <td data-label="Aadhaar">${maskAadhaar(resident.aadhaar)}</td>
+      <td data-label="Rent">Rs ${formatNumber(resident.rent)}<br /><small>Due day ${resident.dueDay}</small></td>
+      <td data-label="Deposit">Rs ${formatNumber(resident.deposit)}</td>
+      <td data-label="Status"><span class="status-pill ${status.className}">${status.label}</span></td>
+      <td data-label="Action"><button class="danger-button" type="button" data-remove="${resident.id}">Remove</button></td>
     `;
     body.append(row);
   });
