@@ -213,9 +213,11 @@ document.querySelector("#paymentForm").addEventListener("submit", async (event) 
   event.preventDefault();
   const form = event.currentTarget;
   await withButtonLock(form.querySelector("button[type='submit']"), "Submitting...", async () => {
+    const body = formToJson(form);
+    body.proofImage = await buildPaymentProof(form.proofImage.files[0]);
     await api("/api/payments", {
       method: "POST",
-      body: formToJson(form),
+      body,
     });
     form.reset();
     form.paidOn.valueAsDate = new Date();
@@ -409,6 +411,7 @@ function renderApprovals() {
       </div>
       <p class="muted-text">${escapeHtml(payment.note || "No note added.")}</p>
       <div class="row-actions">
+        ${payment.proofImage?.dataUrl ? `<a class="small-link-button" href="${payment.proofImage.dataUrl}" target="_blank" rel="noopener">View screenshot</a>` : ""}
         <button class="small-button" type="button" data-payment-action="approve" data-payment-id="${payment.id}">Approve payment</button>
         <button class="danger-button" type="button" data-payment-action="reject" data-payment-id="${payment.id}">Reject</button>
       </div>
@@ -779,6 +782,7 @@ function renderMyPayments(user) {
       }</span>
         </div>
         <p class="muted-text">Amount: Rs ${formatNumber(payment.amount)}</p>
+        ${payment.proofImage?.dataUrl ? `<a class="small-link-button" href="${payment.proofImage.dataUrl}" target="_blank" rel="noopener">View screenshot</a>` : ""}
       `;
       list.append(card);
     });
@@ -876,6 +880,46 @@ async function api(path, options = {}) {
 function formToJson(form) {
   const data = new FormData(form);
   return Object.fromEntries([...data.entries()].map(([key, value]) => [key, typeof value === "string" ? value.trim() : value]));
+}
+
+async function buildPaymentProof(file) {
+  if (!file || !file.size) return null;
+  if (!file.type.startsWith("image/")) throw new Error("Payment screenshot must be an image file.");
+
+  const image = await loadImage(file);
+  const maxSide = 1200;
+  const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(image.width * scale));
+  canvas.height = Math.max(1, Math.round(image.height * scale));
+  const context = canvas.getContext("2d");
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.72);
+
+  if (dataUrl.length > 900000) {
+    throw new Error("Screenshot is too large. Please crop it or choose a smaller image.");
+  }
+
+  return {
+    name: file.name,
+    type: "image/jpeg",
+    dataUrl,
+  };
+}
+
+function loadImage(file) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(image.src);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(image.src);
+      reject(new Error("Could not read payment screenshot."));
+    };
+    image.src = URL.createObjectURL(file);
+  });
 }
 
 async function withButtonLock(button, label, task) {

@@ -246,6 +246,7 @@ async function createPayment(profile, body) {
   const transactionId = clean(body.transactionId);
   const paidOn = clean(body.paidOn);
   const month = getMonthKey(new Date());
+  const proofImage = validatePaymentProof(body.proofImage);
 
   if (!amount || amount < 1) throw httpError(400, "Payment amount is required.");
   if (!method || !transactionId || !paidOn) throw httpError(400, "Payment method, transaction ID, and date are required.");
@@ -270,6 +271,7 @@ async function createPayment(profile, body) {
     paidOn,
     status: "pending",
     note: clean(body.note),
+    proofImage,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   };
@@ -423,6 +425,19 @@ function validateResidentDetails(body) {
   if (!resident.rent || resident.rent < 0 || resident.deposit < 0) throw httpError(400, "Rent and deposit must be valid amounts.");
   if (!dueDay || dueDay < 1 || dueDay > 28) throw httpError(400, "Payment date must be between 1 and 28.");
   return resident;
+}
+
+function validatePaymentProof(proof) {
+  if (!proof) return null;
+  const dataUrl = clean(proof.dataUrl);
+  if (!dataUrl) return null;
+  if (!dataUrl.startsWith("data:image/jpeg;base64,")) throw httpError(400, "Payment screenshot must be a JPG image.");
+  if (dataUrl.length > 900000) throw httpError(400, "Payment screenshot is too large.");
+  return {
+    name: clean(proof.name).slice(0, 120) || "payment-proof.jpg",
+    type: "image/jpeg",
+    dataUrl,
+  };
 }
 
 async function readJson(request) {
