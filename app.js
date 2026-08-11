@@ -122,12 +122,22 @@ document.querySelector("#residentRoomSelect").addEventListener("change", () => {
   renderResidentBedOptions();
 });
 
+document.querySelector("#editResidentRoomSelect").addEventListener("change", () => {
+  renderEditResidentBedOptions();
+});
+
 document.querySelector("#searchInput").addEventListener("input", (event) => {
   searchTerm = event.target.value.toLowerCase();
   renderResidents();
 });
 
 document.querySelector("#residentRows").addEventListener("click", async (event) => {
+  const editButton = event.target.closest("button[data-edit]");
+  if (editButton) {
+    openEditResident(editButton.dataset.edit);
+    return;
+  }
+
   const button = event.target.closest("button[data-remove]");
   if (!button) return;
   const user = state.users.find((item) => item.id === button.dataset.remove);
@@ -138,6 +148,25 @@ document.querySelector("#residentRows").addEventListener("click", async (event) 
     await loadPortal();
     showToast("Resident removed from active list.");
   });
+});
+
+document.querySelector("#editResidentForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const residentId = form.residentId.value;
+  await withButtonLock(form.querySelector("button[type='submit']"), "Saving...", async () => {
+    await api(`/api/admin/residents/${residentId}/update`, {
+      method: "POST",
+      body: formToJson(form),
+    });
+    closeEditResident();
+    await loadPortal();
+    showToast("Resident details updated.");
+  });
+});
+
+document.querySelector("#cancelEditResident").addEventListener("click", () => {
+  closeEditResident();
 });
 
 document.querySelector("#approvalList").addEventListener("click", async (event) => {
@@ -345,7 +374,12 @@ function renderResidents() {
       <td data-label="Rent">Rs ${formatNumber(resident.rent)}<br /><small>Due day ${resident.dueDay}</small></td>
       <td data-label="Deposit">Rs ${formatNumber(resident.deposit)}</td>
       <td data-label="Status"><span class="status-pill ${status.className}">${status.label}</span></td>
-      <td data-label="Action"><button class="danger-button" type="button" data-remove="${resident.id}">Remove</button></td>
+      <td data-label="Action">
+        <div class="row-actions">
+          <button class="small-button" type="button" data-edit="${resident.id}">Edit</button>
+          <button class="danger-button" type="button" data-remove="${resident.id}">Remove</button>
+        </div>
+      </td>
     `;
     body.append(row);
   });
@@ -418,7 +452,33 @@ function renderRooms() {
 
 function renderResidentRoomOptions() {
   const roomSelect = document.querySelector("#residentRoomSelect");
-  const selectedRoom = roomSelect.value;
+  renderRoomOptions(roomSelect, document.querySelector("#residentBedSelect"), roomSelect.value);
+}
+
+function renderResidentBedOptions() {
+  renderBedOptions(document.querySelector("#residentRoomSelect"), document.querySelector("#residentBedSelect"));
+}
+
+function renderEditResidentRoomOptions(resident) {
+  renderRoomOptions(
+    document.querySelector("#editResidentRoomSelect"),
+    document.querySelector("#editResidentBedSelect"),
+    resident.room,
+    resident.id
+  );
+  renderEditResidentBedOptions(resident);
+}
+
+function renderEditResidentBedOptions(resident = getEditingResident()) {
+  renderBedOptions(
+    document.querySelector("#editResidentRoomSelect"),
+    document.querySelector("#editResidentBedSelect"),
+    resident?.bed || "",
+    resident?.id || null
+  );
+}
+
+function renderRoomOptions(roomSelect, bedSelect, selectedRoom = "", residentId = null) {
   roomSelect.replaceChildren();
 
   const placeholder = document.createElement("option");
@@ -434,7 +494,7 @@ function renderResidentRoomOptions() {
       const occupied = getOccupiedBeds(room).length;
       option.value = room.number;
       option.textContent = `${room.floor || getFloorName(room.number)} / Room ${room.number} (${occupied}/${room.beds.length})`;
-      option.disabled = occupied >= room.beds.length;
+      option.disabled = occupied >= room.beds.length && !roomHasResident(room, residentId);
       roomSelect.append(option);
     });
 
@@ -442,13 +502,10 @@ function renderResidentRoomOptions() {
     roomSelect.value = selectedRoom;
   }
 
-  renderResidentBedOptions();
+  renderBedOptions(roomSelect, bedSelect, "", residentId);
 }
 
-function renderResidentBedOptions() {
-  const roomSelect = document.querySelector("#residentRoomSelect");
-  const bedSelect = document.querySelector("#residentBedSelect");
-  const selectedBed = bedSelect.value;
+function renderBedOptions(roomSelect, bedSelect, selectedBed = bedSelect.value, residentId = null) {
   const room = state.rooms.find((item) => item.number === roomSelect.value);
   bedSelect.replaceChildren();
 
@@ -464,13 +521,44 @@ function renderResidentBedOptions() {
     const option = document.createElement("option");
     option.value = bed;
     option.textContent = resident ? `${bed} - occupied by ${resident.name}` : `${bed} - vacant`;
-    option.disabled = Boolean(resident);
+    option.disabled = Boolean(resident && resident.id !== residentId);
     bedSelect.append(option);
   });
 
   if ([...bedSelect.options].some((option) => option.value === selectedBed && !option.disabled)) {
     bedSelect.value = selectedBed;
   }
+}
+
+function openEditResident(residentId) {
+  const resident = state.users.find((item) => item.id === residentId);
+  if (!resident) return;
+
+  const form = document.querySelector("#editResidentForm");
+  form.classList.remove("hidden");
+  form.residentId.value = resident.id;
+  form.name.value = resident.name || "";
+  form.phone.value = resident.phone || "";
+  form.aadhaar.value = resident.aadhaar || "";
+  form.rent.value = resident.rent || "";
+  form.deposit.value = resident.deposit ?? 0;
+  form.joiningDate.value = resident.joiningDate || "";
+  form.dueDay.value = resident.dueDay || 5;
+  form.address.value = resident.address || "";
+  document.querySelector("#editResidentTitle").textContent = `Edit ${resident.name}`;
+  renderEditResidentRoomOptions(resident);
+  document.querySelector("#residents").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function closeEditResident() {
+  const form = document.querySelector("#editResidentForm");
+  form.reset();
+  form.classList.add("hidden");
+}
+
+function getEditingResident() {
+  const residentId = document.querySelector("#editResidentForm").residentId.value;
+  return state.users.find((item) => item.id === residentId);
 }
 
 function renderPropertyFlow() {
@@ -710,6 +798,10 @@ function isBedTaken(room, bed) {
 
 function findResidentByBed(room, bed) {
   return getActiveResidents().find((resident) => resident.room === room && resident.bed === bed);
+}
+
+function roomHasResident(room, residentId) {
+  return getActiveResidents().some((resident) => resident.id === residentId && resident.room === room.number);
 }
 
 function getOccupiedBeds(room) {

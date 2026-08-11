@@ -285,6 +285,31 @@
                 <tbody id="residentRows"></tbody>
               </table>
             </div>
+
+            <form class="edit-resident-panel hidden" id="editResidentForm">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Update resident</p>
+                  <h3 id="editResidentTitle">Edit details</h3>
+                </div>
+                <button class="ghost-button" id="cancelEditResident" type="button">Cancel</button>
+              </div>
+              <input name="residentId" type="hidden" />
+              <div class="form-grid compact">
+                <label>Full name <input name="name" type="text" required /></label>
+                <label>Mobile number <input name="phone" type="tel" required /></label>
+                <label>Aadhaar number <input name="aadhaar" type="text" inputmode="numeric" maxlength="12" required /></label>
+                <label>Room number <select name="room" id="editResidentRoomSelect" required></select></label>
+                <label>Bed <select name="bed" id="editResidentBedSelect" required></select></label>
+                <label>Monthly rent <input name="rent" type="number" min="0" step="100" required /></label>
+                <label>Deposit <input name="deposit" type="number" min="0" step="100" required /></label>
+                <label>Joining date <input name="joiningDate" type="date" required /></label>
+                <label>Payment date <input name="dueDay" type="number" min="1" max="28" required /></label>
+                <label class="wide">Address <textarea name="address" rows="3"></textarea></label>
+              </div>
+              <button class="primary-action full" type="submit">Save updated details</button>
+              <p class="helper-text">Use this when rent increases, mobile/address changes, or resident shifts room or bed.</p>
+            </form>
           </section>
 
           <section class="work-grid lower-grid">

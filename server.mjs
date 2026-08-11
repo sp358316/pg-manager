@@ -94,6 +94,15 @@ async function handleApi(request, response) {
     return;
   }
 
+  const updateResidentMatch = url.pathname.match(/^\/api\/admin\/residents\/([^/]+)\/update$/);
+  if (request.method === "POST" && updateResidentMatch) {
+    await requireAdmin(request);
+    const body = await readJson(request);
+    const resident = await updateResident(updateResidentMatch[1], body);
+    sendJson(response, 200, { resident });
+    return;
+  }
+
   if (request.method === "POST" && url.pathname === "/api/payments") {
     const session = await requireSession(request);
     const body = await readJson(request);
@@ -145,6 +154,28 @@ async function createResident(body) {
 
   await db.collection("users").doc(authUser.uid).set(profile);
   return { ...profile, createdAt: null, updatedAt: null };
+}
+
+async function updateResident(residentId, body) {
+  const ref = db.collection("users").doc(residentId);
+  const snapshot = await ref.get();
+  if (!snapshot.exists) throw httpError(404, "Resident not found.");
+  const existing = snapshot.data();
+  if (existing.role !== "resident") throw httpError(400, "Only resident profiles can be updated.");
+
+  const resident = validateResidentDetails(body);
+  await ensureRoomBedExists(resident.room, resident.bed);
+  const movingBed = existing.room !== resident.room || existing.bed !== resident.bed;
+  if (movingBed && (await isBedTaken(resident.room, resident.bed, residentId))) {
+    throw httpError(409, `Room ${resident.room}, bed ${resident.bed} is already occupied.`);
+  }
+
+  const update = {
+    ...resident,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+  await ref.set(update, { merge: true });
+  return { id: residentId, ...existing, ...update, updatedAt: null };
 }
 
 async function createFloorStructure(body) {
@@ -305,7 +336,7 @@ async function requireSession(request) {
   };
 }
 
-async function isBedTaken(room, bed) {
+async function isBedTaken(room, bed, exceptResidentId = null) {
   const snapshot = await db
     .collection("users")
     .where("role", "==", "resident")
@@ -313,7 +344,7 @@ async function isBedTaken(room, bed) {
     .where("room", "==", room)
     .where("bed", "==", bed)
     .get();
-  return !snapshot.empty;
+  return snapshot.docs.some((doc) => doc.id !== exceptResidentId);
 }
 
 async function ensureRoomBedExists(room, bed) {
@@ -360,6 +391,31 @@ function validateResident(body) {
 
   if (!email.endsWith("@gmail.com")) throw httpError(400, "Resident must use a Gmail address.");
   if (password.length < 6) throw httpError(400, "Temporary password must be at least 6 characters.");
+  if (aadhaar.length !== 12) throw httpError(400, "Aadhaar must be 12 digits.");
+  if (!resident.name || !resident.phone || !resident.room || !resident.bed || !resident.joiningDate) {
+    throw httpError(400, "Name, phone, room, bed, and joining date are required.");
+  }
+  if (!resident.rent || resident.rent < 0 || resident.deposit < 0) throw httpError(400, "Rent and deposit must be valid amounts.");
+  if (!dueDay || dueDay < 1 || dueDay > 28) throw httpError(400, "Payment date must be between 1 and 28.");
+  return resident;
+}
+
+function validateResidentDetails(body) {
+  const aadhaar = onlyDigits(body.aadhaar);
+  const dueDay = Number(body.dueDay);
+  const resident = {
+    name: clean(body.name),
+    phone: clean(body.phone),
+    aadhaar,
+    address: clean(body.address),
+    room: clean(body.room).toUpperCase(),
+    bed: clean(body.bed).toUpperCase(),
+    rent: Number(body.rent),
+    deposit: Number(body.deposit),
+    joiningDate: clean(body.joiningDate),
+    dueDay,
+  };
+
   if (aadhaar.length !== 12) throw httpError(400, "Aadhaar must be 12 digits.");
   if (!resident.name || !resident.phone || !resident.room || !resident.bed || !resident.joiningDate) {
     throw httpError(400, "Name, phone, room, bed, and joining date are required.");

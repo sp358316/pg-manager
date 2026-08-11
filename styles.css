@@ -674,6 +674,20 @@ textarea:focus {
   background: #fbfdfb;
 }
 
+.edit-resident-panel {
+  display: grid;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid rgba(15, 118, 110, 0.25);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.edit-resident-panel.hidden {
+  display: none;
+}
+
 .detail-card strong,
 .room-card strong,
 .empty-state strong {
