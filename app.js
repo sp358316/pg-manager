@@ -15,6 +15,7 @@ let currentUser = null;
 let state = { profile: null, users: [], rooms: [], payments: [] };
 let searchTerm = "";
 let selectedProperty = { floor: null, room: null, bed: null };
+const mobileSectionsQuery = window.matchMedia("(max-width: 760px)");
 
 const authScreen = document.querySelector("#authScreen");
 const appShell = document.querySelector("#appShell");
@@ -241,6 +242,10 @@ document.querySelector("#adminNav").addEventListener("click", (event) => {
   const target = document.querySelector(link.getAttribute("href"));
   const panel = target?.closest(".mobile-section");
   if (panel) setMobileSectionOpen(panel, true);
+});
+
+mobileSectionsQuery.addEventListener("change", () => {
+  setupMobileSections();
 });
 
 await boot();
@@ -779,18 +784,28 @@ function renderAdminPayments() {
 
 function setupMobileSections() {
   const panels = document.querySelectorAll("#adminView .panel");
+  const isMobile = mobileSectionsQuery.matches;
   panels.forEach((panel, index) => {
-    panel.classList.add("mobile-section");
     const heading = panel.querySelector(":scope > .panel-heading, :scope > .table-heading");
-    if (!heading) return;
+    const toggle = heading?.querySelector("[data-mobile-section-toggle]");
 
-    let toggle = heading.querySelector("[data-mobile-section-toggle]");
-    if (!toggle) {
-      toggle = document.createElement("button");
-      toggle.type = "button";
-      toggle.className = "mobile-section-toggle";
-      toggle.dataset.mobileSectionToggle = "true";
-      heading.append(toggle);
+    if (!isMobile) {
+      panel.classList.remove("mobile-section", "is-collapsed");
+      delete panel.dataset.mobileReady;
+      toggle?.remove();
+      return;
+    }
+
+    if (!heading) return;
+    panel.classList.add("mobile-section");
+
+    let mobileToggle = toggle;
+    if (!mobileToggle) {
+      mobileToggle = document.createElement("button");
+      mobileToggle.type = "button";
+      mobileToggle.className = "mobile-section-toggle";
+      mobileToggle.dataset.mobileSectionToggle = "true";
+      heading.append(mobileToggle);
     }
 
     if (!panel.dataset.mobileReady) {
@@ -798,7 +813,7 @@ function setupMobileSections() {
       const shouldOpen = false;
       panel.classList.toggle("is-collapsed", !shouldOpen);
     }
-    toggle.textContent = panel.classList.contains("is-collapsed") ? "Open" : "Close";
+    mobileToggle.textContent = panel.classList.contains("is-collapsed") ? "Open" : "Close";
   });
 }
 

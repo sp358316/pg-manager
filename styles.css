@@ -219,12 +219,13 @@ textarea:disabled {
   position: sticky;
   top: 0;
   height: 100vh;
-  padding: 28px 22px;
+  padding: 22px 18px;
   background: #13231c;
   color: #f7fbf8;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 20px;
+  overflow-y: auto;
 }
 
 .brand h1 {
@@ -244,7 +245,7 @@ textarea:disabled {
 .nav-link {
   color: #dce8e1;
   text-decoration: none;
-  padding: 12px 14px;
+  padding: 10px 14px;
   border-radius: 8px;
 }
 
@@ -255,15 +256,15 @@ textarea:disabled {
 
 .owner-card {
   margin-top: auto;
-  padding: 18px;
+  padding: 14px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.1);
 }
 
 .owner-card strong {
   display: block;
-  margin: 8px 0 3px;
-  font-size: 1.4rem;
+  margin: 6px 0 2px;
+  font-size: 1.15rem;
   overflow-wrap: anywhere;
 }
 
@@ -967,7 +968,7 @@ td small {
 }
 
 .mobile-section-toggle {
-  display: none;
+  display: none !important;
 }
 
 /* Modern visual layer: keeps existing structure and behavior intact. */
@@ -1356,6 +1357,87 @@ tbody tr:hover {
   .table-heading input {
     max-width: none;
   }
+
+  .app-shell {
+    display: block;
+  }
+
+  .sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    height: auto;
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .brand {
+    align-items: center;
+  }
+
+  .brand p,
+  .owner-card .label,
+  .owner-card strong,
+  .owner-card p {
+    display: none;
+  }
+
+  .nav-list {
+    display: flex;
+    gap: 8px;
+    margin: 0 -12px;
+    padding: 0 12px 4px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .nav-link {
+    flex: 0 0 auto;
+    min-height: 38px;
+    padding: 8px 11px;
+    white-space: nowrap;
+    font-size: 0.88rem;
+  }
+
+  .owner-card {
+    display: block;
+    margin-top: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .owner-card .ghost-button {
+    min-height: 38px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+  }
+
+  .mobile-section {
+    scroll-margin-top: 122px;
+  }
+
+  .mobile-section-toggle {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0 12px;
+    border: 1px solid rgba(13, 148, 136, 0.2);
+    border-radius: 8px;
+    background: #eefcf9;
+    color: var(--brand-dark);
+    font-weight: 900;
+  }
+
+  .mobile-section.is-collapsed {
+    padding-bottom: 12px;
+  }
+
+  .mobile-section.is-collapsed > :not(.panel-heading):not(.table-heading) {
+    display: none;
+  }
 }
 
 @media (max-width: 560px) {
@@ -1417,61 +1499,6 @@ tbody tr:hover {
 
   .auth-form {
     margin-top: 0;
-  }
-
-  .app-shell {
-    display: block;
-  }
-
-  .sidebar {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    padding: 12px;
-    gap: 12px;
-  }
-
-  .brand {
-    align-items: center;
-  }
-
-  .brand p,
-  .owner-card .label,
-  .owner-card strong,
-  .owner-card p {
-    display: none;
-  }
-
-  .nav-list {
-    display: flex;
-    gap: 8px;
-    margin: 0 -12px;
-    padding: 0 12px 4px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .nav-link {
-    flex: 0 0 auto;
-    min-height: 38px;
-    padding: 8px 11px;
-    white-space: nowrap;
-    font-size: 0.88rem;
-  }
-
-  .owner-card {
-    display: block;
-    margin-top: 0;
-    padding: 0;
-    border: 0;
-    background: transparent;
-  }
-
-  .owner-card .ghost-button {
-    min-height: 38px;
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    background: rgba(255, 255, 255, 0.12);
-    color: #ffffff;
   }
 
   main {
@@ -1546,31 +1573,6 @@ tbody tr:hover {
   .table-heading,
   .detail-card-head {
     gap: 10px;
-  }
-
-  .mobile-section {
-    scroll-margin-top: 122px;
-  }
-
-  .mobile-section-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 34px;
-    padding: 0 12px;
-    border: 1px solid rgba(13, 148, 136, 0.2);
-    border-radius: 8px;
-    background: #eefcf9;
-    color: var(--brand-dark);
-    font-weight: 900;
-  }
-
-  .mobile-section.is-collapsed {
-    padding-bottom: 12px;
-  }
-
-  .mobile-section.is-collapsed > :not(.panel-heading):not(.table-heading) {
-    display: none;
   }
 
   .row-actions {
