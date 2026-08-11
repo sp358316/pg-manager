@@ -432,18 +432,27 @@ function renderRooms() {
       const card = document.createElement("article");
       card.className = "room-card";
       const occupied = room.beds.filter((bed) => isBedTaken(room.number, bed));
+      const occupancyPercent = room.beds.length ? Math.round((occupied.length / room.beds.length) * 100) : 0;
+      const occupiedDetails = occupied
+        .map((bed) => {
+          const resident = getActiveResidents().find((item) => item.room === room.number && item.bed === bed);
+          return `<span class="bed-chip occupied">${escapeHtml(bed)} - ${escapeHtml(resident?.name || "occupied")}</span>`;
+        })
+        .join("");
       card.innerHTML = `
-        <strong>Room ${escapeHtml(room.number)}</strong>
-        <p>${escapeHtml(room.floor || getFloorName(room.number))} - ${occupied.length} of ${room.beds.length} beds occupied</p>
+        <div class="room-card-head">
+          <div>
+            <strong>Room ${escapeHtml(room.number)}</strong>
+            <p>${escapeHtml(room.floor || getFloorName(room.number))}</p>
+          </div>
+          <span class="room-count">${occupied.length}/${room.beds.length}</span>
+        </div>
+        <div class="occupancy-meter" aria-label="${occupied.length} of ${room.beds.length} beds occupied">
+          <span style="width: ${occupancyPercent}%"></span>
+        </div>
         <div class="room-beds">
-          ${room.beds
-            .map((bed) => {
-              const resident = getActiveResidents().find((item) => item.room === room.number && item.bed === bed);
-              return `<span class="bed-chip ${resident ? "occupied" : ""}">${escapeHtml(bed)}${
-                resident ? ` - ${escapeHtml(resident.name)}` : " - empty"
-              }</span>`;
-            })
-            .join("")}
+          ${occupiedDetails || `<span class="bed-chip">All beds vacant</span>`}
+          ${room.beds.length - occupied.length > 0 ? `<span class="bed-chip vacant-count">${room.beds.length - occupied.length} vacant</span>` : ""}
         </div>
       `;
       grid.append(card);
