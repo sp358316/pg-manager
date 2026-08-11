@@ -1436,7 +1436,9 @@ tbody tr:hover {
   }
 
   .brand p,
-  .owner-card {
+  .owner-card .label,
+  .owner-card strong,
+  .owner-card p {
     display: none;
   }
 
@@ -1458,8 +1460,18 @@ tbody tr:hover {
   }
 
   .owner-card {
+    display: block;
     margin-top: 0;
-    padding: 14px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .owner-card .ghost-button {
+    min-height: 38px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
   }
 
   main {
