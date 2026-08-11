@@ -362,6 +362,73 @@ main {
   gap: 16px;
 }
 
+.module-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.module-card {
+  min-height: 188px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.module-card h3,
+.module-card p {
+  margin: 0;
+}
+
+.module-card h3 {
+  margin-top: 12px;
+  font-size: 1rem;
+}
+
+.module-card p {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.module-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--brand-dark);
+  font-weight: 900;
+}
+
+.module-card.admissions {
+  background: #f3fbf5;
+}
+
+.module-card.finance {
+  background: #fff9e8;
+}
+
+.module-card.property {
+  background: #faf3ff;
+}
+
+.module-card.documents {
+  background: #fff3f5;
+}
+
+.module-card.reports {
+  background: #f2f7ff;
+}
+
+.module-card.settings {
+  background: #f1fbfb;
+}
+
 .stat {
   padding: 18px;
   display: grid;
@@ -386,6 +453,124 @@ main {
   grid-template-columns: minmax(0, 1fr) minmax(380px, 1fr);
   gap: 18px;
   align-items: start;
+}
+
+.hierarchy-flow {
+  display: grid;
+  grid-template-columns: 0.8fr 1fr 0.8fr 1.15fr 1fr;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.flow-column {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdfb;
+  padding: 12px;
+}
+
+.flow-title {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.flow-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.flow-item {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+}
+
+.flow-item:hover,
+.flow-item.active {
+  border-color: rgba(15, 118, 110, 0.35);
+  background: var(--surface-soft);
+}
+
+.flow-item:focus-visible {
+  outline: 3px solid rgba(15, 118, 110, 0.22);
+  outline-offset: 2px;
+}
+
+.flow-item strong,
+.flow-item span {
+  display: block;
+}
+
+.flow-item span,
+.guest-details-card p {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.bed-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.bed-status-tile {
+  min-height: 74px;
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #eff8ff;
+  text-align: center;
+  cursor: pointer;
+}
+
+.bed-status-tile.active,
+.bed-status-tile:hover {
+  border-color: rgba(15, 118, 110, 0.55);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+}
+
+.bed-status-tile.occupied {
+  background: #eaf7ef;
+  color: var(--paid);
+}
+
+.bed-status-tile.vacant {
+  background: #eff8ff;
+  color: var(--brand-dark);
+}
+
+.bed-status-tile span {
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.guest-details-card {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+}
+
+.inline-action {
+  display: inline-flex;
+  margin-top: 12px;
+  color: white;
+  background: var(--brand);
+  border-radius: 8px;
+  padding: 9px 12px;
+  text-decoration: none;
+  font-weight: 900;
 }
 
 .lower-grid {
@@ -615,6 +800,39 @@ td small {
   text-transform: uppercase;
 }
 
+.report-list,
+.settings-grid {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.report-item,
+.settings-grid article {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdfb;
+}
+
+.report-item strong,
+.report-item span,
+.settings-grid strong,
+.settings-grid p {
+  display: block;
+}
+
+.report-item span,
+.settings-grid p {
+  margin-top: 5px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.settings-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .toast {
   position: fixed;
   right: 18px;
@@ -661,9 +879,18 @@ td small {
   }
 
   .stats-grid,
+  .module-grid,
   .work-grid,
   .lower-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .hierarchy-flow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .guest-column {
+    grid-column: 1 / -1;
   }
 }
 
@@ -679,6 +906,9 @@ td small {
 
   .auth-feature-grid,
   .stats-grid,
+  .module-grid,
+  .hierarchy-flow,
+  .settings-grid,
   .work-grid,
   .lower-grid,
   .form-grid,
@@ -818,6 +1048,7 @@ td small {
   }
 
   .stats-grid,
+  .module-grid,
   .work-grid,
   .lower-grid,
   .form-grid {
@@ -848,6 +1079,19 @@ td small {
 
   .room-grid {
     grid-template-columns: 1fr;
+  }
+
+  .module-card {
+    min-height: 0;
+    padding: 14px;
+  }
+
+  .hierarchy-flow {
+    gap: 10px;
+  }
+
+  .bed-status-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .room-card {

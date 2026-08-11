@@ -14,6 +14,7 @@ let auth;
 let currentUser = null;
 let state = { profile: null, users: [], rooms: [], payments: [] };
 let searchTerm = "";
+let selectedProperty = { floor: null, room: null, bed: null };
 
 const authScreen = document.querySelector("#authScreen");
 const appShell = document.querySelector("#appShell");
@@ -114,6 +115,21 @@ document.querySelector("#approvalList").addEventListener("click", async (event) 
   });
 });
 
+document.querySelector("#propertyFlow").addEventListener("click", (event) => {
+  const target = event.target.closest("[data-flow-type]");
+  if (!target) return;
+
+  selectPropertyFlow(target);
+});
+
+document.querySelector("#propertyFlow").addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  const target = event.target.closest("[data-flow-type]");
+  if (!target) return;
+  event.preventDefault();
+  selectPropertyFlow(target);
+});
+
 document.querySelector("#notifyButton").addEventListener("click", () => {
   const dueResidents = getActiveResidents().filter(isPaymentDue);
   if (!dueResidents.length) {
@@ -175,6 +191,7 @@ async function boot() {
 
 async function loadPortal() {
   state = await api("/api/bootstrap");
+  syncSelectedProperty();
   renderPortal();
 }
 
@@ -209,10 +226,13 @@ function renderPortal() {
 
 function renderAdmin() {
   renderAdminStats();
+  renderPropertyFlow();
   renderNotifications();
   renderResidents();
   renderApprovals();
   renderRooms();
+  renderDocuments();
+  renderReports();
 }
 
 function renderAdminStats() {
@@ -353,6 +373,159 @@ function renderRooms() {
     });
 }
 
+function renderPropertyFlow() {
+  const floors = getFloors();
+  const selectedFloor = floors.find((floor) => floor.name === selectedProperty.floor) || floors[0];
+  const selectedRoom =
+    selectedFloor?.rooms.find((room) => room.number === selectedProperty.room) || selectedFloor?.rooms[0];
+  const selectedBed = selectedRoom?.beds.includes(selectedProperty.bed) ? selectedProperty.bed : selectedRoom?.beds[0];
+  const selectedResident = selectedRoom && selectedBed ? findResidentByBed(selectedRoom.number, selectedBed) : null;
+
+  renderFlowList("#floorList", floors.map((floor) => ({
+    title: floor.name,
+    meta: `${floor.rooms.length} room${floor.rooms.length === 1 ? "" : "s"}`,
+    active: floor === selectedFloor,
+    type: "floor",
+    value: floor.name,
+  })));
+
+  renderFlowList("#floorRoomList", (selectedFloor?.rooms || []).map((room) => ({
+    title: `Room ${room.number}`,
+    meta: `${getOccupiedBeds(room).length} of ${room.beds.length} beds occupied`,
+    active: room === selectedRoom,
+    type: "room",
+    value: room.number,
+  })));
+
+  renderFlowList("#roomBedList", (selectedRoom?.beds || []).map((bed) => ({
+    title: bed,
+    meta: findResidentByBed(selectedRoom.number, bed)?.name || "Vacant",
+    active: bed === selectedBed,
+    type: "bed",
+    value: bed,
+  })));
+
+  const statusGrid = document.querySelector("#bedStatusGrid");
+  statusGrid.replaceChildren();
+  if (!selectedRoom) {
+    statusGrid.append(emptyNotice("No beds yet", "Add residents to build room and bed map."));
+  } else {
+    selectedRoom.beds.forEach((bed) => {
+      const resident = findResidentByBed(selectedRoom.number, bed);
+      const tile = document.createElement("article");
+      tile.className = `bed-status-tile ${resident ? "occupied" : "vacant"} ${bed === selectedBed ? "active" : ""}`;
+      tile.dataset.flowType = "bed";
+      tile.dataset.value = bed;
+      tile.innerHTML = `<strong>${escapeHtml(bed)}</strong><span>${resident ? "Occupied" : "Vacant"}</span>`;
+      statusGrid.append(tile);
+    });
+  }
+
+  const guestCard = document.querySelector("#guestDetailsCard");
+  if (!selectedResident) {
+    guestCard.innerHTML = `
+      <strong>No guest selected</strong>
+      <p>Select an occupied bed to view guest details.</p>
+    `;
+    return;
+  }
+
+  guestCard.innerHTML = `
+    <strong>${escapeHtml(selectedResident.name)}</strong>
+    <p>Mobile: ${escapeHtml(selectedResident.phone || "-")}</p>
+    <p>Check-in: ${formatDate(selectedResident.joiningDate)}</p>
+    <p>Rent: Rs ${formatNumber(selectedResident.rent)}</p>
+    <p>Documents: Aadhaar ${selectedResident.aadhaar ? "added" : "pending"}</p>
+    <a class="inline-action" href="#residents">View profile</a>
+  `;
+}
+
+function renderFlowList(selector, items) {
+  const list = document.querySelector(selector);
+  list.replaceChildren();
+  if (!items.length) {
+    list.append(emptyNotice("Empty", "No records found."));
+    return;
+  }
+
+  items.forEach((item) => {
+    const row = document.createElement("article");
+    row.className = `flow-item ${item.active ? "active" : ""}`;
+    row.dataset.flowType = item.type;
+    row.dataset.value = item.value;
+    row.tabIndex = 0;
+    row.innerHTML = `<strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.meta)}</span>`;
+    list.append(row);
+  });
+}
+
+function selectPropertyFlow(target) {
+  const { flowType, value } = target.dataset;
+  if (flowType === "floor") {
+    selectedProperty = { floor: value, room: null, bed: null };
+  }
+  if (flowType === "room") {
+    selectedProperty = { ...selectedProperty, room: value, bed: null };
+  }
+  if (flowType === "bed") {
+    selectedProperty = { ...selectedProperty, bed: value };
+  }
+
+  syncSelectedProperty();
+  renderPropertyFlow();
+}
+
+function renderDocuments() {
+  const list = document.querySelector("#documentList");
+  list.replaceChildren();
+  const residents = getActiveResidents();
+  if (!residents.length) {
+    list.append(emptyNotice("No documents", "Aadhaar and ID proof status will appear after admission."));
+    return;
+  }
+
+  residents.slice(0, 6).forEach((resident) => {
+    const card = document.createElement("article");
+    card.className = "detail-card";
+    card.innerHTML = `
+      <div class="detail-card-head">
+        <div>
+          <strong>${escapeHtml(resident.name)}</strong>
+          <p>Aadhaar: ${maskAadhaar(resident.aadhaar)} - Address proof: ${resident.address ? "Added" : "Pending"}</p>
+        </div>
+        <span class="status-pill ${resident.aadhaar ? "paid" : "due"}">${resident.aadhaar ? "Verified" : "Missing"}</span>
+      </div>
+    `;
+    list.append(card);
+  });
+}
+
+function renderReports() {
+  const list = document.querySelector("#reportList");
+  list.replaceChildren();
+  const residents = getActiveResidents();
+  const totalBeds = state.rooms.reduce((sum, room) => sum + room.beds.length, 0);
+  const pending = state.payments.filter((payment) => payment.status === "pending").length;
+  const approvedCollection = state.payments
+    .filter((payment) => payment.month === monthKey && payment.status === "approved")
+    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+  const expectedRent = residents.reduce((sum, resident) => sum + Number(resident.rent || 0), 0);
+  const dueCount = residents.filter(isPaymentDue).length;
+
+  [
+    ["Occupancy overview", `${residents.length} occupied beds out of ${totalBeds}`],
+    ["Rent collection report", `Rs ${formatNumber(approvedCollection)} collected this month`],
+    ["Due payments report", `${dueCount} residents need reminder`],
+    ["Pending approvals", `${pending} payment requests waiting`],
+    ["Monthly expected rent", `Rs ${formatNumber(expectedRent)}`],
+  ].forEach(([title, body]) => {
+    const item = document.createElement("article");
+    item.className = "report-item";
+    item.innerHTML = `<strong>${escapeHtml(title)}</strong><span>${escapeHtml(body)}</span>`;
+    list.append(item);
+  });
+}
+
 function renderResident() {
   const user = state.profile;
   const paymentStatus = getResidentPaymentStatus(user);
@@ -433,6 +606,47 @@ function getResidentPaymentStatusNoDueLoop(resident) {
 
 function isBedTaken(room, bed) {
   return getActiveResidents().some((resident) => resident.room === room && resident.bed === bed);
+}
+
+function findResidentByBed(room, bed) {
+  return getActiveResidents().find((resident) => resident.room === room && resident.bed === bed);
+}
+
+function getOccupiedBeds(room) {
+  return room.beds.filter((bed) => findResidentByBed(room.number, bed));
+}
+
+function getFloors() {
+  const floorMap = new Map();
+  state.rooms.forEach((room) => {
+    const floorName = getFloorName(room.number);
+    if (!floorMap.has(floorName)) floorMap.set(floorName, []);
+    floorMap.get(floorName).push(room);
+  });
+
+  return [...floorMap.entries()]
+    .sort(([floorA], [floorB]) => floorA.localeCompare(floorB, undefined, { numeric: true }))
+    .map(([name, rooms]) => ({
+      name,
+      rooms: rooms.slice().sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true })),
+    }));
+}
+
+function syncSelectedProperty() {
+  const floors = getFloors();
+  const floor = floors.find((item) => item.name === selectedProperty.floor) || floors[0];
+  const room = floor?.rooms.find((item) => item.number === selectedProperty.room) || floor?.rooms[0];
+  const bed = room?.beds.includes(selectedProperty.bed) ? selectedProperty.bed : room?.beds[0];
+  selectedProperty = {
+    floor: floor?.name || null,
+    room: room?.number || null,
+    bed: bed || null,
+  };
+}
+
+function getFloorName(roomNumber) {
+  const match = String(roomNumber || "").match(/(\d)/);
+  return match ? `Floor ${match[1]}` : "Floor 1";
 }
 
 function getActiveResidents() {
