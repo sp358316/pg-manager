@@ -338,7 +338,7 @@ function renderNotifications() {
       <div class="detail-card-head">
         <div>
           <strong>${escapeHtml(resident.name)}</strong>
-          <p>Room ${escapeHtml(resident.room)} / ${escapeHtml(resident.bed)} - due day ${resident.dueDay}</p>
+          <p>Room ${escapeHtml(resident.room)} / ${escapeHtml(resident.bed)} - rent due every month on ${formatOrdinalDay(resident.dueDay)}</p>
         </div>
         <span class="amount">Rs ${formatNumber(resident.rent)}</span>
       </div>
@@ -371,7 +371,7 @@ function renderResidents() {
       <td data-label="Room">${escapeHtml(resident.room)} / ${escapeHtml(resident.bed)}<br /><small>Joined ${formatDate(resident.joiningDate)}</small></td>
       <td data-label="Phone">${escapeHtml(resident.phone)}</td>
       <td data-label="Aadhaar">${maskAadhaar(resident.aadhaar)}</td>
-      <td data-label="Rent">Rs ${formatNumber(resident.rent)}<br /><small>Due day ${resident.dueDay}</small></td>
+      <td data-label="Rent">Rs ${formatNumber(resident.rent)}<br /><small>Every month: ${formatOrdinalDay(resident.dueDay)}</small></td>
       <td data-label="Deposit">Rs ${formatNumber(resident.deposit)}</td>
       <td data-label="Status"><span class="status-pill ${status.className}">${status.label}</span></td>
       <td data-label="Action">
@@ -723,7 +723,7 @@ function renderResident() {
   document.querySelector("#residentStatus").className = "status-pill paid";
   document.querySelector("#myRoom").textContent = `${user.room} / ${user.bed}`;
   document.querySelector("#myRent").textContent = `Rs ${formatNumber(user.rent)}`;
-  document.querySelector("#myDueDate").textContent = `Pay by day ${user.dueDay} every month`;
+  document.querySelector("#myDueDate").textContent = `Pay by ${formatOrdinalDay(user.dueDay)} every month`;
   document.querySelector("#myDeposit").textContent = `Rs ${formatNumber(user.deposit)}`;
   document.querySelector("#myPaymentStatus").textContent = paymentStatus.label;
   document.querySelector("#paymentForm").amount.value = user.rent || "";
@@ -926,6 +926,13 @@ function formatDate(value) {
 
 function formatNumber(value) {
   return new Intl.NumberFormat("en-IN").format(Number(value || 0));
+}
+
+function formatOrdinalDay(value) {
+  const day = Number(value || 1);
+  const suffix =
+    day % 10 === 1 && day !== 11 ? "st" : day % 10 === 2 && day !== 12 ? "nd" : day % 10 === 3 && day !== 13 ? "rd" : "th";
+  return `${day}${suffix}`;
 }
 
 function maskAadhaar(value) {

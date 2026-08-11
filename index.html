@@ -241,7 +241,7 @@
                 <label>Monthly rent <input name="rent" type="number" min="0" step="100" required /></label>
                 <label>Deposit <input name="deposit" type="number" min="0" step="100" required /></label>
                 <label>Joining date <input name="joiningDate" type="date" required /></label>
-                <label>Payment date <input name="dueDay" type="number" min="1" max="28" value="5" required /></label>
+                <label>Monthly rent due day <input name="dueDay" type="number" min="1" max="28" value="5" required /></label>
                 <label class="wide">Address <textarea name="address" rows="3"></textarea></label>
               </div>
 
@@ -304,7 +304,7 @@
                 <label>Monthly rent <input name="rent" type="number" min="0" step="100" required /></label>
                 <label>Deposit <input name="deposit" type="number" min="0" step="100" required /></label>
                 <label>Joining date <input name="joiningDate" type="date" required /></label>
-                <label>Payment date <input name="dueDay" type="number" min="1" max="28" required /></label>
+                <label>Monthly rent due day <input name="dueDay" type="number" min="1" max="28" required /></label>
                 <label class="wide">Address <textarea name="address" rows="3"></textarea></label>
               </div>
               <button class="primary-action full" type="submit">Save updated details</button>
@@ -366,7 +366,7 @@
             <div class="settings-grid">
               <article>
                 <strong>Rent settings</strong>
-                <p>Monthly payment date comes from each resident admission record.</p>
+                <p>Monthly rent due day comes from each resident admission record.</p>
               </article>
               <article>
                 <strong>Advance / deposit</strong>
@@ -398,7 +398,7 @@
             <article class="stat">
               <span>Monthly rent</span>
               <strong id="myRent">Rs 0</strong>
-              <small id="myDueDate">Payment date pending</small>
+              <small id="myDueDate">Monthly due day pending</small>
             </article>
             <article class="stat">
               <span>Deposit</span>
