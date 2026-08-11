@@ -228,12 +228,25 @@ document.querySelector("#paymentForm").addEventListener("submit", async (event) 
 });
 
 document.querySelector("#adminView").addEventListener("click", (event) => {
-  const button = event.target.closest("[data-mobile-section-toggle]");
-  if (!button) return;
-  const panel = button.closest(".mobile-section");
+  const toggle = event.target.closest("[data-mobile-section-toggle]");
+  const heading = event.target.closest("[data-mobile-section-header]");
+  if (!toggle && !heading) return;
+  if (!mobileSectionsQuery.matches) return;
+  if (!toggle && event.target.closest("button, input, select, textarea, a")) return;
+
+  const panel = (toggle || heading).closest(".mobile-section");
   if (!panel) return;
-  panel.classList.toggle("is-collapsed");
-  button.textContent = panel.classList.contains("is-collapsed") ? "Open" : "Close";
+  setMobileSectionOpen(panel, panel.classList.contains("is-collapsed"), true);
+});
+
+document.querySelector("#adminView").addEventListener("keydown", (event) => {
+  if (!mobileSectionsQuery.matches || !["Enter", " "].includes(event.key)) return;
+  const heading = event.target.closest("[data-mobile-section-header]");
+  if (!heading) return;
+  if (event.target.closest("button, input, select, textarea, a")) return;
+  event.preventDefault();
+  const panel = heading.closest(".mobile-section");
+  if (panel) setMobileSectionOpen(panel, panel.classList.contains("is-collapsed"), true);
 });
 
 document.querySelector("#adminNav").addEventListener("click", (event) => {
@@ -785,6 +798,9 @@ function renderAdminPayments() {
 function setupMobileSections() {
   const panels = document.querySelectorAll("#adminView .panel");
   const isMobile = mobileSectionsQuery.matches;
+  let hasOpenPanel = Array.from(panels).some(
+    (panel) => panel.classList.contains("mobile-section") && !panel.classList.contains("is-collapsed"),
+  );
   panels.forEach((panel, index) => {
     const heading = panel.querySelector(":scope > .panel-heading, :scope > .table-heading");
     const toggle = heading?.querySelector("[data-mobile-section-toggle]");
@@ -792,12 +808,21 @@ function setupMobileSections() {
     if (!isMobile) {
       panel.classList.remove("mobile-section", "is-collapsed");
       delete panel.dataset.mobileReady;
+      if (heading) {
+        delete heading.dataset.mobileSectionHeader;
+        heading.removeAttribute("role");
+        heading.removeAttribute("tabindex");
+        heading.removeAttribute("aria-expanded");
+      }
       toggle?.remove();
       return;
     }
 
     if (!heading) return;
     panel.classList.add("mobile-section");
+    heading.dataset.mobileSectionHeader = "true";
+    heading.setAttribute("role", "button");
+    heading.setAttribute("tabindex", "0");
 
     let mobileToggle = toggle;
     if (!mobileToggle) {
@@ -810,17 +835,37 @@ function setupMobileSections() {
 
     if (!panel.dataset.mobileReady) {
       panel.dataset.mobileReady = "true";
-      const shouldOpen = false;
+      const shouldOpen = !hasOpenPanel && index === 0;
+      if (shouldOpen) hasOpenPanel = true;
       panel.classList.toggle("is-collapsed", !shouldOpen);
     }
-    mobileToggle.textContent = panel.classList.contains("is-collapsed") ? "Open" : "Close";
+    updateMobileSectionState(panel);
   });
 }
 
-function setMobileSectionOpen(panel, open) {
+function setMobileSectionOpen(panel, open, closeOthers = false) {
+  if (closeOthers && open) {
+    document.querySelectorAll("#adminView .mobile-section").forEach((section) => {
+      if (section !== panel) {
+        section.classList.add("is-collapsed");
+        updateMobileSectionState(section);
+      }
+    });
+  }
   panel.classList.toggle("is-collapsed", !open);
+  updateMobileSectionState(panel);
+}
+
+function updateMobileSectionState(panel) {
+  const isOpen = !panel.classList.contains("is-collapsed");
+  const heading = panel.querySelector(":scope > .panel-heading, :scope > .table-heading");
   const toggle = panel.querySelector("[data-mobile-section-toggle]");
-  if (toggle) toggle.textContent = open ? "Close" : "Open";
+  heading?.setAttribute("aria-expanded", String(isOpen));
+  if (toggle) {
+    toggle.textContent = isOpen ? "⌄" : "›";
+    toggle.setAttribute("aria-label", isOpen ? "Collapse section" : "Expand section");
+    toggle.setAttribute("title", isOpen ? "Collapse" : "Expand");
+  }
 }
 
 function renderResident() {
