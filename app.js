@@ -301,6 +301,7 @@ function renderAdmin() {
   renderRooms();
   renderDocuments();
   renderReports();
+  renderAdminPayments();
 }
 
 function renderPropertyForms() {
@@ -724,6 +725,38 @@ function renderReports() {
     item.innerHTML = `<strong>${escapeHtml(title)}</strong><span>${escapeHtml(body)}</span>`;
     list.append(item);
   });
+}
+
+function renderAdminPayments() {
+  const list = document.querySelector("#adminPaymentList");
+  list.replaceChildren();
+  if (!state.payments.length) {
+    list.append(emptyNotice("No payments submitted", "Resident payment records and screenshots will appear here."));
+    return;
+  }
+
+  state.payments
+    .slice()
+    .sort((a, b) => String(b.createdAt || b.paidOn || "").localeCompare(String(a.createdAt || a.paidOn || "")))
+    .forEach((payment) => {
+      const resident = state.users.find((user) => user.id === payment.residentId);
+      const card = document.createElement("article");
+      card.className = "detail-card";
+      card.innerHTML = `
+        <div class="detail-card-head">
+          <div>
+            <strong>${escapeHtml(resident?.name || payment.residentEmail || "Unknown resident")}</strong>
+            <p>${escapeHtml(payment.method)} - ${escapeHtml(payment.transactionId)} - ${formatDate(payment.paidOn)}</p>
+          </div>
+          <span class="status-pill ${payment.status === "approved" ? "paid" : payment.status === "rejected" ? "due" : "waiting"}">${escapeHtml(payment.status)}</span>
+        </div>
+        <p class="muted-text">Amount: Rs ${formatNumber(payment.amount)}${payment.note ? ` - ${escapeHtml(payment.note)}` : ""}</p>
+        <div class="row-actions">
+          ${payment.proofImage?.dataUrl ? `<a class="small-link-button" href="${payment.proofImage.dataUrl}" target="_blank" rel="noopener">View screenshot</a>` : `<span class="muted-text">No screenshot attached</span>`}
+        </div>
+      `;
+      list.append(card);
+    });
 }
 
 function renderResident() {
