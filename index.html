@@ -238,8 +238,8 @@
                 <label>Aadhaar number <input name="aadhaar" type="text" inputmode="numeric" maxlength="12" required /></label>
                 <label>Room number <select name="room" id="residentRoomSelect" required></select></label>
                 <label>Bed <select name="bed" id="residentBedSelect" required></select></label>
-                <label>Monthly rent <input name="rent" type="number" min="0" step="100" required /></label>
-                <label>Deposit <input name="deposit" type="number" min="0" step="100" required /></label>
+                <label>Monthly rent <input name="rent" type="number" min="0" step="1" required /></label>
+                <label>Deposit <input name="deposit" type="number" min="0" step="1" required /></label>
                 <label>Joining date <input name="joiningDate" type="date" required /></label>
                 <label>Monthly rent due day <input name="dueDay" type="number" min="1" max="28" value="5" required /></label>
                 <label class="wide">Address <textarea name="address" rows="3"></textarea></label>
@@ -301,8 +301,8 @@
                 <label>Aadhaar number <input name="aadhaar" type="text" inputmode="numeric" maxlength="12" required /></label>
                 <label>Room number <select name="room" id="editResidentRoomSelect" required></select></label>
                 <label>Bed <select name="bed" id="editResidentBedSelect" required></select></label>
-                <label>Monthly rent <input name="rent" type="number" min="0" step="100" required /></label>
-                <label>Deposit <input name="deposit" type="number" min="0" step="100" required /></label>
+                <label>Monthly rent <input name="rent" type="number" min="0" step="1" required /></label>
+                <label>Deposit <input name="deposit" type="number" min="0" step="1" required /></label>
                 <label>Joining date <input name="joiningDate" type="date" required /></label>
                 <label>Monthly rent due day <input name="dueDay" type="number" min="1" max="28" required /></label>
                 <label class="wide">Address <textarea name="address" rows="3"></textarea></label>
@@ -421,7 +421,7 @@
                 </div>
               </div>
               <div class="form-grid" id="payRent">
-                <label>Amount <input name="amount" type="number" min="1" step="100" required /></label>
+                <label>Amount <input name="amount" type="number" min="1" step="1" required /></label>
                 <label>Payment method
                   <select name="method" required>
                     <option value="UPI">UPI</option>
