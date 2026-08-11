@@ -455,6 +455,32 @@ main {
   align-items: start;
 }
 
+.property-forms {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.setup-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdfb;
+}
+
+.setup-card strong,
+.setup-card p {
+  margin: 0;
+}
+
+.setup-card p {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .hierarchy-flow {
   display: grid;
   grid-template-columns: 0.8fr 1fr 0.8fr 1.15fr 1fr;
@@ -889,6 +915,10 @@ td small {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .property-forms {
+    grid-template-columns: 1fr;
+  }
+
   .guest-column {
     grid-column: 1 / -1;
   }
@@ -907,6 +937,7 @@ td small {
   .auth-feature-grid,
   .stats-grid,
   .module-grid,
+  .property-forms,
   .hierarchy-flow,
   .settings-grid,
   .work-grid,
@@ -1049,6 +1080,7 @@ td small {
 
   .stats-grid,
   .module-grid,
+  .property-forms,
   .work-grid,
   .lower-grid,
   .form-grid {

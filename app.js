@@ -79,11 +79,47 @@ document.querySelector("#manualResidentForm").addEventListener("submit", async (
   });
 });
 
+document.querySelector("#floorSetupForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  await withButtonLock(form.querySelector("button[type='submit']"), "Creating floor...", async () => {
+    await api("/api/admin/property/floors", {
+      method: "POST",
+      body: formToJson(form),
+    });
+    form.reset();
+    form.floorCount.value = 1;
+    form.bedsPerRoom.value = 6;
+    await loadPortal();
+    showToast("Floor, rooms, and beds created.");
+  });
+});
+
+document.querySelector("#roomSetupForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  await withButtonLock(form.querySelector("button[type='submit']"), "Saving room...", async () => {
+    await api("/api/admin/property/rooms", {
+      method: "POST",
+      body: formToJson(form),
+    });
+    form.reset();
+    form.bedCount.value = 6;
+    await loadPortal();
+    showToast("Room bed count saved.");
+  });
+});
+
 document.querySelector("#clearForm").addEventListener("click", () => {
   const form = document.querySelector("#manualResidentForm");
   form.reset();
   form.joiningDate.valueAsDate = new Date();
   form.dueDay.value = 5;
+  renderResidentBedOptions();
+});
+
+document.querySelector("#residentRoomSelect").addEventListener("change", () => {
+  renderResidentBedOptions();
 });
 
 document.querySelector("#searchInput").addEventListener("input", (event) => {
@@ -226,6 +262,7 @@ function renderPortal() {
 
 function renderAdmin() {
   renderAdminStats();
+  renderPropertyForms();
   renderPropertyFlow();
   renderNotifications();
   renderResidents();
@@ -233,6 +270,12 @@ function renderAdmin() {
   renderRooms();
   renderDocuments();
   renderReports();
+}
+
+function renderPropertyForms() {
+  const floorInput = document.querySelector("#roomFloorName");
+  if (!floorInput.value) floorInput.value = getFloors()[0]?.name || "Floor 1";
+  renderResidentRoomOptions();
 }
 
 function renderAdminStats() {
@@ -357,7 +400,7 @@ function renderRooms() {
       const occupied = room.beds.filter((bed) => isBedTaken(room.number, bed));
       card.innerHTML = `
         <strong>Room ${escapeHtml(room.number)}</strong>
-        <p>${occupied.length} of ${room.beds.length} beds occupied</p>
+        <p>${escapeHtml(room.floor || getFloorName(room.number))} - ${occupied.length} of ${room.beds.length} beds occupied</p>
         <div class="room-beds">
           ${room.beds
             .map((bed) => {
@@ -371,6 +414,63 @@ function renderRooms() {
       `;
       grid.append(card);
     });
+}
+
+function renderResidentRoomOptions() {
+  const roomSelect = document.querySelector("#residentRoomSelect");
+  const selectedRoom = roomSelect.value;
+  roomSelect.replaceChildren();
+
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = state.rooms.length ? "Select room" : "Create rooms first";
+  roomSelect.append(placeholder);
+
+  state.rooms
+    .slice()
+    .sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }))
+    .forEach((room) => {
+      const option = document.createElement("option");
+      const occupied = getOccupiedBeds(room).length;
+      option.value = room.number;
+      option.textContent = `${room.floor || getFloorName(room.number)} / Room ${room.number} (${occupied}/${room.beds.length})`;
+      option.disabled = occupied >= room.beds.length;
+      roomSelect.append(option);
+    });
+
+  if ([...roomSelect.options].some((option) => option.value === selectedRoom && !option.disabled)) {
+    roomSelect.value = selectedRoom;
+  }
+
+  renderResidentBedOptions();
+}
+
+function renderResidentBedOptions() {
+  const roomSelect = document.querySelector("#residentRoomSelect");
+  const bedSelect = document.querySelector("#residentBedSelect");
+  const selectedBed = bedSelect.value;
+  const room = state.rooms.find((item) => item.number === roomSelect.value);
+  bedSelect.replaceChildren();
+
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = room ? "Select bed" : "Select room first";
+  bedSelect.append(placeholder);
+
+  if (!room) return;
+
+  room.beds.forEach((bed) => {
+    const resident = findResidentByBed(room.number, bed);
+    const option = document.createElement("option");
+    option.value = bed;
+    option.textContent = resident ? `${bed} - occupied by ${resident.name}` : `${bed} - vacant`;
+    option.disabled = Boolean(resident);
+    bedSelect.append(option);
+  });
+
+  if ([...bedSelect.options].some((option) => option.value === selectedBed && !option.disabled)) {
+    bedSelect.value = selectedBed;
+  }
 }
 
 function renderPropertyFlow() {
@@ -645,6 +745,8 @@ function syncSelectedProperty() {
 }
 
 function getFloorName(roomNumber) {
+  const room = state.rooms.find((item) => item.number === roomNumber);
+  if (room?.floor) return room.floor;
   const match = String(roomNumber || "").match(/(\d)/);
   return match ? `Floor ${match[1]}` : "Floor 1";
 }

@@ -65,7 +65,7 @@
           <a href="#dashboard" class="nav-link active">Dashboard</a>
           <a href="#modules" class="nav-link">Modules</a>
           <a href="#newResident" class="nav-link">Admissions</a>
-          <a href="#propertyFlow" class="nav-link">Property</a>
+          <a href="#propertySetup" class="nav-link">Property</a>
           <a href="#residents" class="nav-link">Residents</a>
           <a href="#approvals" class="nav-link">Approvals</a>
           <a href="#reportsPanel" class="nav-link">Reports</a>
@@ -154,6 +154,40 @@
             </article>
           </section>
 
+          <section class="panel" id="propertySetup">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Property setup</p>
+                <h3>Create floors, rooms, and beds</h3>
+              </div>
+              <span class="status-pill waiting">Admin controlled</span>
+            </div>
+            <div class="property-forms">
+              <form id="floorSetupForm" class="setup-card">
+                <strong>Add full floor</strong>
+                <p>Create multiple floors and rooms at once with the same default bed count.</p>
+                <div class="form-grid compact">
+                  <label>Start floor number <input name="floorNumber" type="number" min="1" max="99" placeholder="1" required /></label>
+                  <label>How many floors? <input name="floorCount" type="number" min="1" max="20" value="1" required /></label>
+                  <label>Rooms in each floor <input name="roomCount" type="number" min="1" max="100" placeholder="10" required /></label>
+                  <label>Default beds in each room <input name="bedsPerRoom" type="number" min="1" max="20" value="6" required /></label>
+                </div>
+                <button class="primary-action full" type="submit">Create floors and rooms</button>
+              </form>
+
+              <form id="roomSetupForm" class="setup-card">
+                <strong>Add or update particular room</strong>
+                <p>Use this when one room has a different bed count.</p>
+                <div class="form-grid compact">
+                  <label>Floor name <input name="floorName" id="roomFloorName" type="text" placeholder="Floor 1" required /></label>
+                  <label>Room number <input name="roomNumber" type="text" placeholder="101" required /></label>
+                  <label>Beds in this room <input name="bedCount" type="number" min="1" max="20" value="6" required /></label>
+                </div>
+                <button class="secondary-action full" type="submit">Save room beds</button>
+              </form>
+            </div>
+          </section>
+
           <section class="panel" id="propertyFlow">
             <div class="panel-heading">
               <div>
@@ -202,8 +236,8 @@
                 <label>Temporary password <input name="password" type="text" minlength="6" placeholder="Minimum 6 characters" required /></label>
                 <label>Mobile number <input name="phone" type="tel" required /></label>
                 <label>Aadhaar number <input name="aadhaar" type="text" inputmode="numeric" maxlength="12" required /></label>
-                <label>Room number <input name="room" type="text" placeholder="A-101" required /></label>
-                <label>Bed <input name="bed" type="text" placeholder="B1" required /></label>
+                <label>Room number <select name="room" id="residentRoomSelect" required></select></label>
+                <label>Bed <select name="bed" id="residentBedSelect" required></select></label>
                 <label>Monthly rent <input name="rent" type="number" min="0" step="100" required /></label>
                 <label>Deposit <input name="deposit" type="number" min="0" step="100" required /></label>
                 <label>Joining date <input name="joiningDate" type="date" required /></label>

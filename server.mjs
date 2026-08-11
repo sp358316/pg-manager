@@ -64,6 +64,22 @@ async function handleApi(request, response) {
     return;
   }
 
+  if (request.method === "POST" && url.pathname === "/api/admin/property/floors") {
+    await requireAdmin(request);
+    const body = await readJson(request);
+    const result = await createFloorStructure(body);
+    sendJson(response, 201, result);
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/admin/property/rooms") {
+    await requireAdmin(request);
+    const body = await readJson(request);
+    const room = await upsertRoomStructure(body);
+    sendJson(response, 201, { room });
+    return;
+  }
+
   const removeMatch = url.pathname.match(/^\/api\/admin\/residents\/([^/]+)\/remove$/);
   if (request.method === "POST" && removeMatch) {
     await requireAdmin(request);
@@ -99,6 +115,7 @@ async function handleApi(request, response) {
 
 async function createResident(body) {
   const resident = validateResident(body);
+  await ensureRoomBedExists(resident.room, resident.bed);
   const bedTaken = await isBedTaken(resident.room, resident.bed);
   if (bedTaken) throw httpError(409, `Room ${resident.room}, bed ${resident.bed} is already occupied.`);
 
@@ -127,8 +144,65 @@ async function createResident(body) {
   };
 
   await db.collection("users").doc(authUser.uid).set(profile);
-  await ensureRoom(resident.room, resident.bed);
   return { ...profile, createdAt: null, updatedAt: null };
+}
+
+async function createFloorStructure(body) {
+  const startFloorNumber = Number(body.floorNumber);
+  const floorCount = Number(body.floorCount);
+  const roomCount = Number(body.roomCount);
+  const bedsPerRoom = Number(body.bedsPerRoom);
+
+  if (!startFloorNumber || startFloorNumber < 1 || startFloorNumber > 99) throw httpError(400, "Start floor number must be between 1 and 99.");
+  if (!floorCount || floorCount < 1 || floorCount > 20) throw httpError(400, "Floor count must be between 1 and 20.");
+  if (!roomCount || roomCount < 1 || roomCount > 100) throw httpError(400, "Rooms count must be between 1 and 100.");
+  if (!bedsPerRoom || bedsPerRoom < 1 || bedsPerRoom > 20) throw httpError(400, "Beds per room must be between 1 and 20.");
+  if (floorCount * roomCount > 450) throw httpError(400, "Create up to 450 rooms at one time.");
+
+  const batch = db.batch();
+  const rooms = [];
+  for (let floorOffset = 0; floorOffset < floorCount; floorOffset += 1) {
+    const floorNumber = startFloorNumber + floorOffset;
+    const floorName = `Floor ${floorNumber}`;
+    for (let index = 1; index <= roomCount; index += 1) {
+      const roomNumber = `${floorNumber}${String(index).padStart(2, "0")}`;
+      const existing = await db.collection("rooms").doc(roomNumber).get();
+      if (existing.exists) {
+        throw httpError(409, `Room ${roomNumber} already exists. Use particular room update instead.`);
+      }
+      const room = buildRoom(roomNumber, floorName, bedsPerRoom);
+      rooms.push(room);
+      batch.set(db.collection("rooms").doc(roomNumber), room, { merge: true });
+    }
+  }
+  await batch.commit();
+  return { rooms };
+}
+
+async function upsertRoomStructure(body) {
+  const floorName = clean(body.floorName) || `Floor ${Number(body.floorNumber) || 1}`;
+  const roomNumber = clean(body.roomNumber).toUpperCase();
+  const bedCount = Number(body.bedCount);
+
+  if (!roomNumber) throw httpError(400, "Room number is required.");
+  if (!bedCount || bedCount < 1 || bedCount > 20) throw httpError(400, "Bed count must be between 1 and 20.");
+
+  const existing = await db.collection("rooms").doc(roomNumber).get();
+  if (existing.exists) {
+    const occupiedBedsSnapshot = await db
+      .collection("users")
+      .where("role", "==", "resident")
+      .where("status", "==", "active")
+      .where("room", "==", roomNumber)
+      .get();
+    const newBeds = createBedLabels(bedCount);
+    const removedOccupiedBed = occupiedBedsSnapshot.docs.some((doc) => !newBeds.includes(doc.data().bed));
+    if (removedOccupiedBed) throw httpError(409, "This room has residents in beds that would be removed.");
+  }
+
+  const room = buildRoom(roomNumber, floorName, bedCount);
+  await db.collection("rooms").doc(roomNumber).set(room, { merge: true });
+  return room;
 }
 
 async function createPayment(profile, body) {
@@ -242,27 +316,27 @@ async function isBedTaken(room, bed) {
   return !snapshot.empty;
 }
 
-async function ensureRoom(room, bed) {
-  const ref = db.collection("rooms").doc(room);
-  const snapshot = await ref.get();
-  if (!snapshot.exists) {
-    await ref.set({
-      id: room,
-      number: room,
-      beds: [bed],
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-    return;
+async function ensureRoomBedExists(room, bed) {
+  const snapshot = await db.collection("rooms").doc(room).get();
+  if (!snapshot.exists) throw httpError(400, "Create this room in Property Structure before assigning a resident.");
+  const roomData = snapshot.data();
+  if (!Array.isArray(roomData.beds) || !roomData.beds.includes(bed)) {
+    throw httpError(400, `Bed ${bed} is not configured in room ${room}.`);
   }
+}
 
-  await ref.set(
-    {
-      beds: admin.firestore.FieldValue.arrayUnion(bed),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    },
-    { merge: true }
-  );
+function buildRoom(roomNumber, floorName, bedCount) {
+  return {
+    id: roomNumber,
+    number: roomNumber,
+    floor: floorName,
+    beds: createBedLabels(bedCount),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+}
+
+function createBedLabels(count) {
+  return Array.from({ length: count }, (_, index) => `B${index + 1}`);
 }
 
 function validateResident(body) {
