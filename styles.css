@@ -966,6 +966,10 @@ td small {
   color: var(--danger);
 }
 
+.mobile-section-toggle {
+  display: none;
+}
+
 /* Modern visual layer: keeps existing structure and behavior intact. */
 .auth-copy {
   position: relative;
@@ -1302,7 +1306,6 @@ tbody tr:hover {
   }
 
   .auth-feature-grid,
-  .stats-grid,
   .property-forms,
   .hierarchy-flow,
   .settings-grid,
@@ -1311,6 +1314,11 @@ tbody tr:hover {
   .form-grid,
   .assignment-grid {
     grid-template-columns: 1fr;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
 
   .module-grid {
@@ -1341,8 +1349,8 @@ tbody tr:hover {
   .panel-heading,
   .table-heading,
   .detail-card-head {
-    align-items: stretch;
-    flex-direction: column;
+    align-items: flex-start;
+    flex-direction: row;
   }
 
   .table-heading input {
@@ -1416,12 +1424,20 @@ tbody tr:hover {
   }
 
   .sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
     padding: 12px;
     gap: 12px;
   }
 
   .brand {
-    align-items: flex-start;
+    align-items: center;
+  }
+
+  .brand p,
+  .owner-card {
+    display: none;
   }
 
   .nav-list {
@@ -1435,8 +1451,10 @@ tbody tr:hover {
 
   .nav-link {
     flex: 0 0 auto;
-    padding: 10px 12px;
+    min-height: 38px;
+    padding: 8px 11px;
     white-space: nowrap;
+    font-size: 0.88rem;
   }
 
   .owner-card {
@@ -1454,7 +1472,18 @@ tbody tr:hover {
   }
 
   .topbar h2 {
-    font-size: 1.8rem;
+    font-size: 1.25rem;
+  }
+
+  .topbar {
+    padding: 12px;
+  }
+
+  .topbar .primary-action {
+    width: auto;
+    min-height: 38px;
+    padding: 0 12px;
+    font-size: 0.82rem;
   }
 
   .primary-action,
@@ -1485,14 +1514,51 @@ tbody tr:hover {
     box-shadow: 0 8px 20px rgba(28, 55, 44, 0.07);
   }
 
+  .stat {
+    min-height: 96px;
+    gap: 4px;
+  }
+
   .stat strong {
-    font-size: 1.55rem;
+    font-size: 1.25rem;
+  }
+
+  .stat span,
+  .stat small {
+    font-size: 0.72rem;
+    line-height: 1.25;
+  }
   }
 
   .panel-heading,
   .table-heading,
   .detail-card-head {
     gap: 10px;
+  }
+
+  .mobile-section {
+    scroll-margin-top: 122px;
+  }
+
+  .mobile-section-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0 12px;
+    border: 1px solid rgba(13, 148, 136, 0.2);
+    border-radius: 8px;
+    background: #eefcf9;
+    color: var(--brand-dark);
+    font-weight: 900;
+  }
+
+  .mobile-section.is-collapsed {
+    padding-bottom: 12px;
+  }
+
+  .mobile-section.is-collapsed > :not(.panel-heading):not(.table-heading) {
+    display: none;
   }
 
   .row-actions {

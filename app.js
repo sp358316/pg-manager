@@ -226,6 +226,23 @@ document.querySelector("#paymentForm").addEventListener("submit", async (event) 
   });
 });
 
+document.querySelector("#adminView").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-mobile-section-toggle]");
+  if (!button) return;
+  const panel = button.closest(".mobile-section");
+  if (!panel) return;
+  panel.classList.toggle("is-collapsed");
+  button.textContent = panel.classList.contains("is-collapsed") ? "Open" : "Close";
+});
+
+document.querySelector("#adminNav").addEventListener("click", (event) => {
+  const link = event.target.closest("a[href^='#']");
+  if (!link) return;
+  const target = document.querySelector(link.getAttribute("href"));
+  const panel = target?.closest(".mobile-section");
+  if (panel) setMobileSectionOpen(panel, true);
+});
+
 await boot();
 
 async function boot() {
@@ -302,6 +319,7 @@ function renderAdmin() {
   renderDocuments();
   renderReports();
   renderAdminPayments();
+  setupMobileSections();
 }
 
 function renderPropertyForms() {
@@ -757,6 +775,37 @@ function renderAdminPayments() {
       `;
       list.append(card);
     });
+}
+
+function setupMobileSections() {
+  const panels = document.querySelectorAll("#adminView .panel");
+  panels.forEach((panel, index) => {
+    panel.classList.add("mobile-section");
+    const heading = panel.querySelector(":scope > .panel-heading, :scope > .table-heading");
+    if (!heading) return;
+
+    let toggle = heading.querySelector("[data-mobile-section-toggle]");
+    if (!toggle) {
+      toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "mobile-section-toggle";
+      toggle.dataset.mobileSectionToggle = "true";
+      heading.append(toggle);
+    }
+
+    if (!panel.dataset.mobileReady) {
+      panel.dataset.mobileReady = "true";
+      const shouldOpen = false;
+      panel.classList.toggle("is-collapsed", !shouldOpen);
+    }
+    toggle.textContent = panel.classList.contains("is-collapsed") ? "Open" : "Close";
+  });
+}
+
+function setMobileSectionOpen(panel, open) {
+  panel.classList.toggle("is-collapsed", !open);
+  const toggle = panel.querySelector("[data-mobile-section-toggle]");
+  if (toggle) toggle.textContent = open ? "Close" : "Open";
 }
 
 function renderResident() {
