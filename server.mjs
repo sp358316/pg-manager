@@ -371,6 +371,7 @@ async function createPayment(profile, body) {
 
   if (!amount || amount < 1) throw httpError(400, "Payment amount is required.");
   if (!method || !transactionId || !paidOn) throw httpError(400, "Payment method, transaction ID, and date are required.");
+  await ensurePaymentMethodAllowed(profile.pgId, method);
 
   const existing = await db
     .collection("payments")
@@ -550,6 +551,7 @@ async function getPgProfile(pgId) {
 async function updatePgProfile(adminProfile, body) {
   const name = clean(body.name);
   const address = clean(body.address);
+  const paymentSettings = validatePaymentSettings(body);
   if (!name) throw httpError(400, "PG name is required.");
   if (name.length > 80) throw httpError(400, "PG name must be under 80 characters.");
   if (address.length > 240) throw httpError(400, "PG address must be under 240 characters.");
@@ -558,12 +560,21 @@ async function updatePgProfile(adminProfile, body) {
     id: adminProfile.pgId,
     name,
     address,
+    paymentSettings,
     ownerUid: adminProfile.id,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   };
   await db.collection("pgs").doc(adminProfile.pgId).set(pg, { merge: true });
   await db.collection("users").doc(adminProfile.id).set({ pgName: name, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
   return { ...pg, updatedAt: null };
+}
+
+async function ensurePaymentMethodAllowed(pgId, method) {
+  const pg = await getPgProfile(pgId);
+  const methods = getEnabledPaymentMethods(pg?.paymentSettings);
+  if (!methods.some((item) => item.value === method)) {
+    throw httpError(400, "This payment method is not enabled by the PG owner.");
+  }
 }
 
 async function ensurePgContext(uid, data) {
@@ -702,6 +713,31 @@ function validatePgOwnerUpdate(body) {
   if (!statuses.has(owner.status)) throw httpError(400, "Status must be active or inactive.");
   if (!subscriptionStatuses.has(owner.subscriptionStatus)) throw httpError(400, "Subscription status is invalid.");
   return owner;
+}
+
+function validatePaymentSettings(body) {
+  const settings = {
+    allowUpi: isChecked(body.allowUpi),
+    upiId: clean(body.upiId),
+    allowBank: isChecked(body.allowBank),
+    bankDetails: clean(body.bankDetails),
+    allowCash: isChecked(body.allowCash),
+    cashInstructions: clean(body.cashInstructions),
+  };
+  if (settings.allowUpi && !settings.upiId) throw httpError(400, "UPI ID is required when UPI is enabled.");
+  if (settings.allowBank && !settings.bankDetails) throw httpError(400, "Bank details are required when bank transfer is enabled.");
+  if (settings.upiId.length > 80) throw httpError(400, "UPI ID must be under 80 characters.");
+  if (settings.bankDetails.length > 300) throw httpError(400, "Bank details must be under 300 characters.");
+  if (settings.cashInstructions.length > 160) throw httpError(400, "Cash instructions must be under 160 characters.");
+  return settings;
+}
+
+function getEnabledPaymentMethods(settings = {}) {
+  const methods = [];
+  if (settings.allowUpi && settings.upiId) methods.push({ value: "UPI", label: "UPI" });
+  if (settings.allowBank && settings.bankDetails) methods.push({ value: "Bank transfer", label: "Bank transfer" });
+  if (settings.allowCash) methods.push({ value: "Cash deposit", label: "Cash deposit" });
+  return methods;
 }
 
 function validateResident(body) {
@@ -873,6 +909,10 @@ function clean(value) {
 
 function onlyDigits(value) {
   return String(value || "").replace(/\D/g, "");
+}
+
+function isChecked(value) {
+  return value === true || value === "true" || value === "on" || value === "yes";
 }
 
 function httpError(status, message) {

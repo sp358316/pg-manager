@@ -45,6 +45,7 @@ document.querySelector("#todayLabel").textContent = new Intl.DateTimeFormat("en-
 
 document.querySelector("#manualResidentForm").joiningDate.valueAsDate = new Date();
 document.querySelector("#paymentForm").paidOn.valueAsDate = new Date();
+document.querySelector("#paymentMethodSelect").addEventListener("change", renderPaymentInstructions);
 
 document.querySelector("#loginForm").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -573,8 +574,15 @@ function renderAdmin() {
 
 function renderPgSettings() {
   const form = document.querySelector("#pgSettingsForm");
+  const settings = state.pg?.paymentSettings || {};
   form.name.value = state.pg?.name || state.profile?.pgName || "My PG";
   form.address.value = state.pg?.address || "";
+  form.allowUpi.checked = Boolean(settings.allowUpi);
+  form.upiId.value = settings.upiId || "";
+  form.allowBank.checked = Boolean(settings.allowBank);
+  form.bankDetails.value = settings.bankDetails || "";
+  form.allowCash.checked = Boolean(settings.allowCash);
+  form.cashInstructions.value = settings.cashInstructions || "";
 }
 
 function getModuleFromHash() {
@@ -1116,9 +1124,52 @@ function renderResident() {
   document.querySelector("#myDeposit").textContent = `Rs ${formatNumber(user.deposit)}`;
   document.querySelector("#myPaymentStatus").textContent = paymentStatus.label;
   document.querySelector("#paymentForm").amount.value = user.rent || "";
+  renderResidentPaymentMethods();
 
   renderProfile(user);
   renderMyPayments(user);
+}
+
+function renderResidentPaymentMethods() {
+  const select = document.querySelector("#paymentMethodSelect");
+  const submitButton = document.querySelector("#paymentForm button[type='submit']");
+  const methods = getEnabledPaymentMethods();
+  select.replaceChildren();
+
+  methods.forEach((method) => {
+    const option = document.createElement("option");
+    option.value = method.value;
+    option.textContent = method.label;
+    select.append(option);
+  });
+
+  const hasMethods = methods.length > 0;
+  select.disabled = !hasMethods;
+  submitButton.disabled = !hasMethods;
+  renderPaymentInstructions();
+}
+
+function renderPaymentInstructions() {
+  const panel = document.querySelector("#paymentInstructions");
+  const method = document.querySelector("#paymentMethodSelect").value;
+  const settings = state.pg?.paymentSettings || {};
+  let title = "Payment method not configured";
+  let detail = "Ask your PG owner to enable UPI, bank transfer, or cash deposit.";
+
+  if (method === "UPI") {
+    title = "Pay using UPI";
+    detail = settings.upiId ? `UPI ID: ${settings.upiId}` : "UPI ID is not configured.";
+  }
+  if (method === "Bank transfer") {
+    title = "Pay using bank transfer";
+    detail = settings.bankDetails || "Bank details are not configured.";
+  }
+  if (method === "Cash deposit") {
+    title = "Pay using cash";
+    detail = settings.cashInstructions || "Pay directly to the PG owner or manager.";
+  }
+
+  panel.innerHTML = `<strong>${escapeHtml(title)}</strong><p>${escapeHtml(detail)}</p>`;
 }
 
 function renderProfile(user) {
@@ -1258,6 +1309,15 @@ function getFloorName(roomNumber) {
 
 function getActiveResidents() {
   return state.users.filter((user) => user.role === "resident" && user.status === "active");
+}
+
+function getEnabledPaymentMethods() {
+  const settings = state.pg?.paymentSettings || {};
+  const methods = [];
+  if (settings.allowUpi && settings.upiId) methods.push({ value: "UPI", label: "UPI" });
+  if (settings.allowBank && settings.bankDetails) methods.push({ value: "Bank transfer", label: "Bank transfer" });
+  if (settings.allowCash) methods.push({ value: "Cash deposit", label: "Cash deposit" });
+  return methods;
 }
 
 async function api(path, options = {}) {

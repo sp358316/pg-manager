@@ -604,11 +604,17 @@
             <form class="setup-card pg-settings-card" id="pgSettingsForm">
               <div>
                 <strong>PG information</strong>
-                <p>This name is used for this owner workspace. Residents and rooms stay separated under this PG.</p>
+                <p>This name, address, and payment setup are shown only inside this PG workspace.</p>
               </div>
               <div class="form-grid compact">
                 <label>PG name <input name="name" id="pgNameInput" type="text" maxlength="80" placeholder="My PG" required /></label>
                 <label class="wide">PG address <textarea name="address" id="pgAddressInput" rows="3" maxlength="240" placeholder="Building, area, city"></textarea></label>
+                <label class="checkbox-line"><input name="allowUpi" type="checkbox" /> Allow UPI</label>
+                <label>UPI ID <input name="upiId" type="text" maxlength="80" placeholder="owner@upi" /></label>
+                <label class="checkbox-line"><input name="allowBank" type="checkbox" /> Allow bank transfer</label>
+                <label>Bank details <textarea name="bankDetails" rows="3" maxlength="300" placeholder="Bank, account, IFSC"></textarea></label>
+                <label class="checkbox-line"><input name="allowCash" type="checkbox" /> Allow cash deposit</label>
+                <label>Cash instructions <input name="cashInstructions" type="text" maxlength="160" placeholder="Pay at office / manager desk" /></label>
               </div>
               <button class="primary-action full" type="submit">Save PG information</button>
             </form>
@@ -673,13 +679,9 @@
               <div class="form-grid" id="payRent">
                 <label>Amount <input name="amount" type="number" min="1" step="1" required /></label>
                 <label>Payment method
-                  <select name="method" required>
-                    <option value="UPI">UPI</option>
-                    <option value="Card">Card</option>
-                    <option value="Net banking">Net banking</option>
-                    <option value="Cash deposit">Cash deposit</option>
-                  </select>
+                  <select name="method" id="paymentMethodSelect" required></select>
                 </label>
+                <div class="wide payment-instructions" id="paymentInstructions"></div>
                 <label>Transaction ID <input name="transactionId" type="text" placeholder="UPI123456" required /></label>
                 <label>Payment date <input name="paidOn" type="date" required /></label>
                 <label class="wide">Note <textarea name="note" rows="3" placeholder="Bank name, screenshot note, or message"></textarea></label>

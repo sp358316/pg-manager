@@ -688,6 +688,43 @@ label {
   font-weight: 700;
 }
 
+.checkbox-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 45px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.checkbox-line input {
+  width: auto;
+  min-width: 18px;
+  height: 18px;
+}
+
+.payment-instructions {
+  padding: 12px 14px;
+  border: 1px solid rgba(13, 148, 136, 0.24);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.payment-instructions strong,
+.payment-instructions p {
+  display: block;
+  margin: 0;
+}
+
+.payment-instructions p {
+  margin-top: 4px;
+  color: var(--muted);
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
 input,
 select,
 textarea {
