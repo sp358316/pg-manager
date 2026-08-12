@@ -27,6 +27,10 @@ const adminNav = document.querySelector("#adminNav");
 const residentNav = document.querySelector("#residentNav");
 const emptyTemplate = document.querySelector("#emptyStateTemplate");
 const toast = document.querySelector("#toast");
+const proofModal = document.querySelector("#proofModal");
+const proofModalImage = document.querySelector("#proofModalImage");
+const proofModalTitle = document.querySelector("#proofModalTitle");
+const proofModalDownload = document.querySelector("#proofModalDownload");
 
 document.querySelector("#todayLabel").textContent = new Intl.DateTimeFormat("en-IN", {
   weekday: "long",
@@ -170,6 +174,26 @@ document.querySelector("#editResidentForm").addEventListener("submit", async (ev
 
 document.querySelector("#cancelEditResident").addEventListener("click", () => {
   closeEditResident();
+});
+
+document.addEventListener("click", (event) => {
+  const proofButton = event.target.closest("[data-payment-proof]");
+  if (!proofButton) return;
+  openPaymentProof(proofButton.dataset.paymentProof);
+});
+
+document.querySelector("#proofModalClose").addEventListener("click", () => {
+  closePaymentProof();
+});
+
+proofModal.addEventListener("click", (event) => {
+  if (event.target === proofModal) closePaymentProof();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !proofModal.classList.contains("hidden")) {
+    closePaymentProof();
+  }
 });
 
 document.querySelector("#approvalList").addEventListener("click", async (event) => {
@@ -500,7 +524,7 @@ function renderApprovals() {
       </div>
       <p class="muted-text">${escapeHtml(payment.note || "No note added.")}</p>
       <div class="row-actions">
-        ${payment.proofImage?.dataUrl ? `<a class="small-link-button" href="${payment.proofImage.dataUrl}" target="_blank" rel="noopener">View screenshot</a>` : ""}
+        ${payment.proofImage?.dataUrl ? `<button class="small-link-button" type="button" data-payment-proof="${payment.id}">View screenshot</button>` : ""}
         <button class="small-button" type="button" data-payment-action="approve" data-payment-id="${payment.id}">Approve payment</button>
         <button class="danger-button" type="button" data-payment-action="reject" data-payment-id="${payment.id}">Reject</button>
       </div>
@@ -841,7 +865,7 @@ function renderAdminPayments() {
         </div>
         <p class="muted-text">Amount: Rs ${formatNumber(payment.amount)}${payment.note ? ` - ${escapeHtml(payment.note)}` : ""}</p>
         <div class="row-actions">
-          ${payment.proofImage?.dataUrl ? `<a class="small-link-button" href="${payment.proofImage.dataUrl}" target="_blank" rel="noopener">View screenshot</a>` : `<span class="muted-text">No screenshot attached</span>`}
+          ${payment.proofImage?.dataUrl ? `<button class="small-link-button" type="button" data-payment-proof="${payment.id}">View screenshot</button>` : `<span class="muted-text">No screenshot attached</span>`}
         </div>
       `;
       list.append(card);
@@ -946,10 +970,33 @@ function renderMyPayments(user) {
       }</span>
         </div>
         <p class="muted-text">Amount: Rs ${formatNumber(payment.amount)}</p>
-        ${payment.proofImage?.dataUrl ? `<a class="small-link-button" href="${payment.proofImage.dataUrl}" target="_blank" rel="noopener">View screenshot</a>` : ""}
+        ${payment.proofImage?.dataUrl ? `<button class="small-link-button" type="button" data-payment-proof="${payment.id}">View screenshot</button>` : ""}
       `;
       list.append(card);
     });
+}
+
+function openPaymentProof(paymentId) {
+  const payment = state.payments.find((item) => item.id === paymentId);
+  if (!payment?.proofImage?.dataUrl) {
+    showToast("No screenshot is attached to this payment.", "error");
+    return;
+  }
+
+  const resident = state.users.find((user) => user.id === payment.residentId);
+  proofModalTitle.textContent = `${resident?.name || payment.residentEmail || "Payment"} screenshot`;
+  proofModalImage.src = payment.proofImage.dataUrl;
+  proofModalDownload.href = payment.proofImage.dataUrl;
+  proofModalDownload.download = payment.proofImage.name || "payment-screenshot.jpg";
+  proofModal.classList.remove("hidden");
+  document.body.classList.add("modal-open");
+}
+
+function closePaymentProof() {
+  proofModal.classList.add("hidden");
+  proofModalImage.removeAttribute("src");
+  proofModalDownload.href = "#";
+  document.body.classList.remove("modal-open");
 }
 
 function getResidentPaymentStatus(resident) {

@@ -550,6 +550,20 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+    <div class="image-modal hidden" id="proofModal" role="dialog" aria-modal="true" aria-labelledby="proofModalTitle">
+      <div class="image-modal-card">
+        <div class="image-modal-head">
+          <div>
+            <p class="eyebrow">Payment proof</p>
+            <h3 id="proofModalTitle">Payment screenshot</h3>
+          </div>
+          <button class="ghost-button" id="proofModalClose" type="button">Close</button>
+        </div>
+        <img id="proofModalImage" alt="Payment screenshot preview" />
+        <a class="small-link-button" id="proofModalDownload" href="#" download="payment-screenshot.jpg">Download image</a>
+      </div>
+    </div>
+
     <template id="emptyStateTemplate">
       <div class="empty-state">
         <strong>No records yet</strong>
