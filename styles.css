@@ -478,6 +478,24 @@ main {
   gap: 8px;
 }
 
+.stat-button {
+  width: 100%;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.stat-button:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+
+.stat-button:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.24);
+  outline-offset: 3px;
+}
+
 .stat strong {
   font-size: 2rem;
   line-height: 1.05;

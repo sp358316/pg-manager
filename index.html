@@ -252,26 +252,26 @@
             </header>
 
             <section class="stats-grid" id="dashboard" aria-label="PG summary">
-              <article class="stat">
+              <button class="stat stat-button" type="button" data-admin-module-link="residents">
                 <span>Total residents</span>
                 <strong id="totalResidents">0</strong>
                 <small>Approved active tenants</small>
-              </article>
-              <article class="stat">
+              </button>
+              <button class="stat stat-button" type="button" data-admin-module-link="property">
                 <span>Room occupancy</span>
                 <strong id="roomsOccupied">0</strong>
                 <small id="roomCapacity">0 of 0 beds occupied</small>
-              </article>
-              <article class="stat alert-stat">
+              </button>
+              <button class="stat stat-button alert-stat" type="button" data-admin-module-link="payments">
                 <span>Pending payments</span>
                 <strong id="pendingApprovals">0</strong>
                 <small>Waiting for manual validation</small>
-              </article>
-              <article class="stat">
+              </button>
+              <button class="stat stat-button" type="button" data-admin-module-link="reports">
                 <span>Monthly collection</span>
                 <strong id="monthlyCollection">Rs 0</strong>
                 <small>Approved payments this month</small>
-              </article>
+              </button>
             </section>
 
             <section class="module-grid" id="modules" aria-label="Core modules">
