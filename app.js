@@ -12,7 +12,7 @@ const monthKey = getMonthKey(new Date());
 let firebaseApp;
 let auth;
 let currentUser = null;
-let state = { profile: null, users: [], rooms: [], payments: [] };
+let state = { pg: null, profile: null, users: [], rooms: [], payments: [] };
 let searchTerm = "";
 let selectedProperty = { floor: null, room: null, bed: null };
 let activeAdminModule = "dashboard";
@@ -114,6 +114,19 @@ document.querySelector("#roomSetupForm").addEventListener("submit", async (event
     form.bedCount.value = 6;
     await loadPortal();
     showToast("Room bed count saved.");
+  });
+});
+
+document.querySelector("#pgSettingsForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  await withButtonLock(form.querySelector("button[type='submit']"), "Saving PG...", async () => {
+    await api("/api/admin/pg", {
+      method: "POST",
+      body: formToJson(form),
+    });
+    await loadPortal();
+    showToast("PG information saved.");
   });
 });
 
@@ -320,7 +333,7 @@ async function boot() {
   onAuthStateChanged(auth, async (user) => {
     currentUser = user;
     if (!user) {
-      state = { profile: null, users: [], rooms: [], payments: [] };
+      state = { pg: null, profile: null, users: [], rooms: [], payments: [] };
       renderLoggedOut();
       return;
     }
@@ -357,6 +370,7 @@ function renderPortal() {
   appShell.classList.remove("hidden");
   document.querySelector("#signedInName").textContent = profile.name || currentUser.email;
   document.querySelector("#signedInEmail").textContent = currentUser.email;
+  document.querySelector("#portalPgName").textContent = state.pg?.name || profile.pgName || "PG Manager";
 
   const isAdmin = profile.role === "admin";
   document.querySelector("#roleLabel").textContent = isAdmin ? "Admin portal" : "Resident portal";
@@ -384,8 +398,15 @@ function renderAdmin() {
   renderDocuments();
   renderReports();
   renderAdminPayments();
+  renderPgSettings();
   renderAdminModuleView();
   setupMobileSections();
+}
+
+function renderPgSettings() {
+  const form = document.querySelector("#pgSettingsForm");
+  form.name.value = state.pg?.name || state.profile?.pgName || "My PG";
+  form.address.value = state.pg?.address || "";
 }
 
 function getModuleFromHash() {

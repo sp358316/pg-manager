@@ -56,7 +56,7 @@
         <div class="brand">
           <div class="brand-mark">PG</div>
           <div>
-            <h1>PG Manager</h1>
+            <h1 id="portalPgName">PG Manager</h1>
             <p id="roleLabel">Portal</p>
           </div>
         </div>
@@ -447,6 +447,17 @@
                 <h3>PG rules and notifications</h3>
               </div>
             </div>
+            <form class="setup-card pg-settings-card" id="pgSettingsForm">
+              <div>
+                <strong>PG information</strong>
+                <p>This name is used for this owner workspace. Residents and rooms stay separated under this PG.</p>
+              </div>
+              <div class="form-grid compact">
+                <label>PG name <input name="name" id="pgNameInput" type="text" maxlength="80" placeholder="My PG" required /></label>
+                <label class="wide">PG address <textarea name="address" id="pgAddressInput" rows="3" maxlength="240" placeholder="Building, area, city"></textarea></label>
+              </div>
+              <button class="primary-action full" type="submit">Save PG information</button>
+            </form>
             <div class="settings-grid">
               <article>
                 <strong>Rent settings</strong>

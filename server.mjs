@@ -65,27 +65,37 @@ async function handleApi(request, response) {
   }
 
   if (request.method === "POST" && url.pathname === "/api/admin/property/floors") {
-    await requireAdmin(request);
+    const session = await requireAdmin(request);
     const body = await readJson(request);
-    const result = await createFloorStructure(body);
+    const result = await createFloorStructure(body, session.profile);
     sendJson(response, 201, result);
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/api/admin/property/rooms") {
-    await requireAdmin(request);
+    const session = await requireAdmin(request);
     const body = await readJson(request);
-    const room = await upsertRoomStructure(body);
+    const room = await upsertRoomStructure(body, session.profile);
     sendJson(response, 201, { room });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/admin/pg") {
+    const session = await requireAdmin(request);
+    const body = await readJson(request);
+    const pg = await updatePgProfile(session.profile, body);
+    sendJson(response, 200, { pg });
     return;
   }
 
   const removeMatch = url.pathname.match(/^\/api\/admin\/residents\/([^/]+)\/remove$/);
   if (request.method === "POST" && removeMatch) {
-    await requireAdmin(request);
+    const session = await requireAdmin(request);
+    const resident = await getResidentForAdmin(removeMatch[1], session.profile);
     await db.collection("users").doc(removeMatch[1]).set(
       {
         status: "left",
+        pgId: resident.existing.pgId,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       },
       { merge: true }
@@ -96,9 +106,9 @@ async function handleApi(request, response) {
 
   const updateResidentMatch = url.pathname.match(/^\/api\/admin\/residents\/([^/]+)\/update$/);
   if (request.method === "POST" && updateResidentMatch) {
-    await requireAdmin(request);
+    const session = await requireAdmin(request);
     const body = await readJson(request);
-    const resident = await updateResident(updateResidentMatch[1], body);
+    const resident = await updateResident(updateResidentMatch[1], body, session.profile);
     sendJson(response, 200, { resident });
     return;
   }
@@ -113,8 +123,8 @@ async function handleApi(request, response) {
 
   const paymentMatch = url.pathname.match(/^\/api\/payments\/([^/]+)\/(approve|reject)$/);
   if (request.method === "POST" && paymentMatch) {
-    await requireAdmin(request);
-    await reviewPayment(paymentMatch[1], paymentMatch[2]);
+    const session = await requireAdmin(request);
+    await reviewPayment(paymentMatch[1], paymentMatch[2], session.profile);
     sendJson(response, 200, { ok: true });
     return;
   }
@@ -122,10 +132,10 @@ async function handleApi(request, response) {
   sendJson(response, 404, { error: "API route not found." });
 }
 
-async function createResident(body) {
+async function createResident(body, adminProfile) {
   const resident = validateResident(body);
-  await ensureRoomBedExists(resident.room, resident.bed);
-  const bedTaken = await isBedTaken(resident.room, resident.bed);
+  await ensureRoomBedExists(adminProfile.pgId, resident.room, resident.bed);
+  const bedTaken = await isBedTaken(adminProfile.pgId, resident.room, resident.bed);
   if (bedTaken) throw httpError(409, `Room ${resident.room}, bed ${resident.bed} is already occupied.`);
 
   let authUser;
@@ -145,6 +155,7 @@ async function createResident(body) {
   const profile = {
     id: authUser.uid,
     uid: authUser.uid,
+    pgId: adminProfile.pgId,
     role: "resident",
     status: "active",
     ...resident,
@@ -156,29 +167,26 @@ async function createResident(body) {
   return { ...profile, createdAt: null, updatedAt: null };
 }
 
-async function updateResident(residentId, body) {
-  const ref = db.collection("users").doc(residentId);
-  const snapshot = await ref.get();
-  if (!snapshot.exists) throw httpError(404, "Resident not found.");
-  const existing = snapshot.data();
-  if (existing.role !== "resident") throw httpError(400, "Only resident profiles can be updated.");
+async function updateResident(residentId, body, adminProfile) {
+  const { ref, existing } = await getResidentForAdmin(residentId, adminProfile);
 
   const resident = validateResidentDetails(body);
-  await ensureRoomBedExists(resident.room, resident.bed);
+  await ensureRoomBedExists(adminProfile.pgId, resident.room, resident.bed);
   const movingBed = existing.room !== resident.room || existing.bed !== resident.bed;
-  if (movingBed && (await isBedTaken(resident.room, resident.bed, residentId))) {
+  if (movingBed && (await isBedTaken(adminProfile.pgId, resident.room, resident.bed, residentId))) {
     throw httpError(409, `Room ${resident.room}, bed ${resident.bed} is already occupied.`);
   }
 
   const update = {
     ...resident,
+    pgId: adminProfile.pgId,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   };
   await ref.set(update, { merge: true });
   return { id: residentId, ...existing, ...update, updatedAt: null };
 }
 
-async function createFloorStructure(body) {
+async function createFloorStructure(body, adminProfile) {
   const startFloorNumber = Number(body.floorNumber);
   const floorCount = Number(body.floorCount);
   const roomCount = Number(body.roomCount);
@@ -197,20 +205,20 @@ async function createFloorStructure(body) {
     const floorName = `Floor ${floorNumber}`;
     for (let index = 1; index <= roomCount; index += 1) {
       const roomNumber = `${floorNumber}${String(index).padStart(2, "0")}`;
-      const existing = await db.collection("rooms").doc(roomNumber).get();
-      if (existing.exists) {
+      const existing = await findRoom(adminProfile.pgId, roomNumber);
+      if (existing) {
         throw httpError(409, `Room ${roomNumber} already exists. Use particular room update instead.`);
       }
-      const room = buildRoom(roomNumber, floorName, bedsPerRoom);
+      const room = buildRoom(adminProfile.pgId, roomNumber, floorName, bedsPerRoom);
       rooms.push(room);
-      batch.set(db.collection("rooms").doc(roomNumber), room, { merge: true });
+      batch.set(db.collection("rooms").doc(roomDocId(adminProfile.pgId, roomNumber)), room, { merge: true });
     }
   }
   await batch.commit();
   return { rooms };
 }
 
-async function upsertRoomStructure(body) {
+async function upsertRoomStructure(body, adminProfile) {
   const floorName = clean(body.floorName) || `Floor ${Number(body.floorNumber) || 1}`;
   const roomNumber = clean(body.roomNumber).toUpperCase();
   const bedCount = Number(body.bedCount);
@@ -218,10 +226,11 @@ async function upsertRoomStructure(body) {
   if (!roomNumber) throw httpError(400, "Room number is required.");
   if (!bedCount || bedCount < 1 || bedCount > 20) throw httpError(400, "Bed count must be between 1 and 20.");
 
-  const existing = await db.collection("rooms").doc(roomNumber).get();
-  if (existing.exists) {
+  const existing = await findRoom(adminProfile.pgId, roomNumber);
+  if (existing) {
     const occupiedBedsSnapshot = await db
       .collection("users")
+      .where("pgId", "==", adminProfile.pgId)
       .where("role", "==", "resident")
       .where("status", "==", "active")
       .where("room", "==", roomNumber)
@@ -231,8 +240,8 @@ async function upsertRoomStructure(body) {
     if (removedOccupiedBed) throw httpError(409, "This room has residents in beds that would be removed.");
   }
 
-  const room = buildRoom(roomNumber, floorName, bedCount);
-  await db.collection("rooms").doc(roomNumber).set(room, { merge: true });
+  const room = buildRoom(adminProfile.pgId, roomNumber, floorName, bedCount);
+  await db.collection("rooms").doc(existing?.id || roomDocId(adminProfile.pgId, roomNumber)).set(room, { merge: true });
   return room;
 }
 
@@ -253,6 +262,7 @@ async function createPayment(profile, body) {
 
   const existing = await db
     .collection("payments")
+    .where("pgId", "==", profile.pgId)
     .where("residentId", "==", profile.id)
     .where("month", "==", month)
     .where("status", "==", "pending")
@@ -262,6 +272,7 @@ async function createPayment(profile, body) {
   const paymentRef = db.collection("payments").doc();
   const payment = {
     id: paymentRef.id,
+    pgId: profile.pgId,
     residentId: profile.id,
     residentEmail: profile.email,
     month,
@@ -279,10 +290,11 @@ async function createPayment(profile, body) {
   return { ...payment, createdAt: null, updatedAt: null };
 }
 
-async function reviewPayment(paymentId, action) {
+async function reviewPayment(paymentId, action, adminProfile) {
   const paymentRef = db.collection("payments").doc(paymentId);
   const snapshot = await paymentRef.get();
   if (!snapshot.exists) throw httpError(404, "Payment not found.");
+  if (snapshot.data().pgId !== adminProfile.pgId) throw httpError(404, "Payment not found for this PG.");
   await paymentRef.set(
     {
       status: action === "approve" ? "approved" : "rejected",
@@ -294,13 +306,15 @@ async function reviewPayment(paymentId, action) {
 }
 
 async function getAdminBootstrap(profile) {
-  const [usersSnapshot, roomsSnapshot, paymentsSnapshot] = await Promise.all([
-    db.collection("users").get(),
-    db.collection("rooms").get(),
-    db.collection("payments").get(),
+  const [pg, usersSnapshot, roomsSnapshot, paymentsSnapshot] = await Promise.all([
+    getPgProfile(profile.pgId),
+    db.collection("users").where("pgId", "==", profile.pgId).get(),
+    db.collection("rooms").where("pgId", "==", profile.pgId).get(),
+    db.collection("payments").where("pgId", "==", profile.pgId).get(),
   ]);
 
   return {
+    pg,
     profile: serializeDoc(profile.id, profile),
     users: usersSnapshot.docs.map((doc) => serializeDoc(doc.id, doc.data())),
     rooms: roomsSnapshot.docs.map((doc) => serializeDoc(doc.id, doc.data())),
@@ -309,8 +323,12 @@ async function getAdminBootstrap(profile) {
 }
 
 async function getResidentBootstrap(profile) {
-  const paymentsSnapshot = await db.collection("payments").where("residentId", "==", profile.id).get();
+  const [pg, paymentsSnapshot] = await Promise.all([
+    getPgProfile(profile.pgId),
+    db.collection("payments").where("pgId", "==", profile.pgId).where("residentId", "==", profile.id).get(),
+  ]);
   return {
+    pg,
     profile: serializeDoc(profile.id, profile),
     users: [serializeDoc(profile.id, profile)],
     rooms: [],
@@ -332,15 +350,17 @@ async function requireSession(request) {
   const decoded = await admin.auth().verifyIdToken(token);
   const profileSnapshot = await db.collection("users").doc(decoded.uid).get();
   if (!profileSnapshot.exists) throw httpError(403, "Your account profile is not configured.");
+  const profile = await ensurePgContext(profileSnapshot.id, profileSnapshot.data());
   return {
     auth: decoded,
-    profile: { id: profileSnapshot.id, ...profileSnapshot.data() },
+    profile,
   };
 }
 
-async function isBedTaken(room, bed, exceptResidentId = null) {
+async function isBedTaken(pgId, room, bed, exceptResidentId = null) {
   const snapshot = await db
     .collection("users")
+    .where("pgId", "==", pgId)
     .where("role", "==", "resident")
     .where("status", "==", "active")
     .where("room", "==", room)
@@ -349,23 +369,156 @@ async function isBedTaken(room, bed, exceptResidentId = null) {
   return snapshot.docs.some((doc) => doc.id !== exceptResidentId);
 }
 
-async function ensureRoomBedExists(room, bed) {
-  const snapshot = await db.collection("rooms").doc(room).get();
-  if (!snapshot.exists) throw httpError(400, "Create this room in Property Structure before assigning a resident.");
-  const roomData = snapshot.data();
+async function ensureRoomBedExists(pgId, room, bed) {
+  const roomDoc = await findRoom(pgId, room);
+  if (!roomDoc) throw httpError(400, "Create this room in Property Structure before assigning a resident.");
+  const roomData = roomDoc.data;
   if (!Array.isArray(roomData.beds) || !roomData.beds.includes(bed)) {
     throw httpError(400, `Bed ${bed} is not configured in room ${room}.`);
   }
 }
 
-function buildRoom(roomNumber, floorName, bedCount) {
+async function findRoom(pgId, roomNumber) {
+  const snapshot = await db.collection("rooms").where("pgId", "==", pgId).where("number", "==", roomNumber).limit(1).get();
+  if (snapshot.empty) return null;
+  const doc = snapshot.docs[0];
+  return { id: doc.id, data: doc.data() };
+}
+
+async function getResidentForAdmin(residentId, adminProfile) {
+  const ref = db.collection("users").doc(residentId);
+  const snapshot = await ref.get();
+  if (!snapshot.exists) throw httpError(404, "Resident not found.");
+  const existing = snapshot.data();
+  if (existing.role !== "resident") throw httpError(400, "Only resident profiles can be updated.");
+  if (existing.pgId !== adminProfile.pgId) throw httpError(404, "Resident not found for this PG.");
+  return { ref, existing };
+}
+
+async function getPgProfile(pgId) {
+  if (!pgId) return null;
+  const snapshot = await db.collection("pgs").doc(pgId).get();
+  if (!snapshot.exists) return { id: pgId, name: "My PG", address: "" };
+  return serializeDoc(snapshot.id, snapshot.data());
+}
+
+async function updatePgProfile(adminProfile, body) {
+  const name = clean(body.name);
+  const address = clean(body.address);
+  if (!name) throw httpError(400, "PG name is required.");
+  if (name.length > 80) throw httpError(400, "PG name must be under 80 characters.");
+  if (address.length > 240) throw httpError(400, "PG address must be under 240 characters.");
+
+  const pg = {
+    id: adminProfile.pgId,
+    name,
+    address,
+    ownerUid: adminProfile.id,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+  await db.collection("pgs").doc(adminProfile.pgId).set(pg, { merge: true });
+  await db.collection("users").doc(adminProfile.id).set({ pgName: name, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+  return { ...pg, updatedAt: null };
+}
+
+async function ensurePgContext(uid, data) {
+  const profile = { id: uid, ...data };
+  if (profile.pgId) {
+    if (profile.role === "admin") await ensurePgDoc(profile);
+    return profile;
+  }
+
+  if (profile.role !== "admin") {
+    throw httpError(403, "This resident is not linked to a PG yet. Ask the PG owner to log in once.");
+  }
+
+  const pgId = `pg_${uid}`;
+  const updatedProfile = { ...profile, pgId, pgName: profile.pgName || "My PG" };
+  await db.collection("users").doc(uid).set(
+    {
+      pgId,
+      pgName: updatedProfile.pgName,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+  await ensurePgDoc(updatedProfile);
+  await backfillLegacyPgData(pgId, uid);
+  return updatedProfile;
+}
+
+async function ensurePgDoc(profile) {
+  const pgRef = db.collection("pgs").doc(profile.pgId);
+  const snapshot = await pgRef.get();
+  if (snapshot.exists) return;
+  await pgRef.set({
+    id: profile.pgId,
+    name: profile.pgName || "My PG",
+    address: "",
+    ownerUid: profile.id,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
+async function backfillLegacyPgData(pgId, adminUid) {
+  const pgRef = db.collection("pgs").doc(pgId);
+  const pgSnapshot = await pgRef.get();
+  if (pgSnapshot.data()?.legacyBackfilled) return;
+
+  const [usersSnapshot, roomsSnapshot, paymentsSnapshot] = await Promise.all([
+    db.collection("users").get(),
+    db.collection("rooms").get(),
+    db.collection("payments").get(),
+  ]);
+
+  let batch = db.batch();
+  let writes = 0;
+  const commitIfNeeded = async () => {
+    if (!writes) return;
+    await batch.commit();
+    batch = db.batch();
+    writes = 0;
+  };
+  const queue = async (ref, data) => {
+    batch.set(ref, data, { merge: true });
+    writes += 1;
+    if (writes >= 450) await commitIfNeeded();
+  };
+
+  for (const doc of usersSnapshot.docs) {
+    const user = doc.data();
+    if (user.pgId) continue;
+    if (doc.id === adminUid || user.role === "resident") {
+      await queue(doc.ref, { pgId, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    }
+  }
+
+  for (const doc of roomsSnapshot.docs) {
+    if (!doc.data().pgId) await queue(doc.ref, { pgId, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+  }
+
+  for (const doc of paymentsSnapshot.docs) {
+    if (!doc.data().pgId) await queue(doc.ref, { pgId, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+  }
+
+  await queue(pgRef, { legacyBackfilled: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+  await commitIfNeeded();
+}
+
+function buildRoom(pgId, roomNumber, floorName, bedCount) {
   return {
-    id: roomNumber,
+    id: roomDocId(pgId, roomNumber),
+    pgId,
     number: roomNumber,
     floor: floorName,
     beds: createBedLabels(bedCount),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   };
+}
+
+function roomDocId(pgId, roomNumber) {
+  return `${pgId}_${roomNumber}`.replace(/[^a-zA-Z0-9_-]/g, "_");
 }
 
 function createBedLabels(count) {
