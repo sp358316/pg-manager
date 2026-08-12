@@ -296,6 +296,7 @@ main {
   overflow-x: hidden;
 }
 
+#superView,
 #adminView,
 #residentView {
   display: grid;
@@ -963,6 +964,11 @@ td small {
 .pg-settings-card {
   margin-top: 18px;
   margin-bottom: 14px;
+}
+
+.owner-management-card {
+  display: grid;
+  gap: 14px;
 }
 
 .toast {
@@ -1649,6 +1655,7 @@ tbody tr:hover {
     padding: 10px;
   }
 
+  #superView,
   #adminView,
   #residentView {
     gap: 14px;

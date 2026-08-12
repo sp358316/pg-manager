@@ -72,6 +72,13 @@
           <a href="#settings" class="nav-link" data-admin-module-link="settings">Settings</a>
         </nav>
 
+        <nav class="nav-list hidden" id="superNav">
+          <a href="#platform-dashboard" class="nav-link active" data-super-module-link="platform-dashboard">Dashboard</a>
+          <a href="#pg-owners" class="nav-link" data-super-module-link="pg-owners">PG Owners</a>
+          <a href="#plans" class="nav-link" data-super-module-link="plans">Plans</a>
+          <a href="#platform-settings" class="nav-link" data-super-module-link="platform-settings">Settings</a>
+        </nav>
+
         <nav class="nav-list hidden" id="residentNav">
           <a href="#residentHome" class="nav-link active">My stay</a>
           <a href="#payRent" class="nav-link">Pay rent</a>
@@ -87,6 +94,153 @@
       </aside>
 
       <main>
+        <section id="superView" class="hidden">
+          <section class="admin-module-view" data-super-module="platform-dashboard">
+            <header class="topbar">
+              <div>
+                <p class="eyebrow">Platform owner</p>
+                <h2>Super Admin dashboard</h2>
+              </div>
+              <span class="status-pill paid">Platform</span>
+            </header>
+
+            <section class="stats-grid" aria-label="Platform summary">
+              <article class="stat">
+                <span>Total PGs</span>
+                <strong id="superTotalPgs">0</strong>
+                <small>PG workspaces created</small>
+              </article>
+              <article class="stat">
+                <span>Active owners</span>
+                <strong id="superActiveOwners">0</strong>
+                <small>Can manage their PG</small>
+              </article>
+              <article class="stat alert-stat">
+                <span>Suspended PGs</span>
+                <strong id="superSuspendedPgs">0</strong>
+                <small>Blocked from operations</small>
+              </article>
+              <article class="stat">
+                <span>Total residents</span>
+                <strong id="superTotalResidents">0</strong>
+                <small>Across all PGs</small>
+              </article>
+            </section>
+
+            <section class="module-grid" aria-label="Platform modules">
+              <button class="module-card residents" type="button" data-super-module-link="pg-owners">
+                <span class="module-icon">PG</span>
+                <h3>PG Owners</h3>
+                <p>Create owner accounts, assign PG, and control plan/status.</p>
+              </button>
+              <button class="module-card finance" type="button" data-super-module-link="plans">
+                <span class="module-icon">Rs</span>
+                <h3>Plans</h3>
+                <p>Free, Basic, Premium metadata for future subscriptions.</p>
+              </button>
+              <button class="module-card settings" type="button" data-super-module-link="platform-settings">
+                <span class="module-icon">*</span>
+                <h3>Platform Settings</h3>
+                <p>Manual Super Admin setup and platform access notes.</p>
+              </button>
+            </section>
+          </section>
+
+          <section class="admin-module-view hidden" data-super-module="pg-owners">
+            <header class="topbar module-topbar">
+              <div>
+                <p class="eyebrow">Platform module</p>
+                <h2>PG owner management</h2>
+              </div>
+              <button class="ghost-button" type="button" data-super-dashboard-link>Back to dashboard</button>
+            </header>
+
+            <form class="panel" id="pgOwnerForm">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Create owner</p>
+                  <h3>Add PG owner and workspace</h3>
+                </div>
+              </div>
+              <div class="form-grid">
+                <label>Owner name <input name="name" type="text" required /></label>
+                <label>Owner Gmail <input name="email" type="email" placeholder="owner@gmail.com" required /></label>
+                <label>Temporary password <input name="password" type="text" minlength="6" required /></label>
+                <label>Owner phone <input name="phone" type="tel" /></label>
+                <label>PG name <input name="pgName" type="text" required /></label>
+                <label>Plan
+                  <select name="plan">
+                    <option value="free">Free</option>
+                    <option value="basic">Basic</option>
+                    <option value="premium">Premium</option>
+                  </select>
+                </label>
+                <label>Status
+                  <select name="status">
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </label>
+                <label>Subscription
+                  <select name="subscriptionStatus">
+                    <option value="trial">Trial</option>
+                    <option value="active">Active</option>
+                    <option value="suspended">Suspended</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </label>
+                <label class="wide">PG address <textarea name="pgAddress" rows="3"></textarea></label>
+              </div>
+              <button class="primary-action full" type="submit">Create PG owner</button>
+              <p class="helper-text">Share the temporary password with the PG owner. They can reset it from Gmail later.</p>
+            </form>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">PG owners</p>
+                  <h3>Owner accounts and plans</h3>
+                </div>
+              </div>
+              <div id="pgOwnerList" class="stack-list"></div>
+            </section>
+          </section>
+
+          <section class="admin-module-view hidden" data-super-module="plans">
+            <header class="topbar module-topbar">
+              <div>
+                <p class="eyebrow">Subscription metadata</p>
+                <h2>Plans</h2>
+              </div>
+              <button class="ghost-button" type="button" data-super-dashboard-link>Back to dashboard</button>
+            </header>
+            <section class="panel">
+              <div class="settings-grid">
+                <article><strong>Free</strong><p>Starter plan marker for demos and first PG owners.</p></article>
+                <article><strong>Basic</strong><p>Paid plan marker for future billing logic.</p></article>
+                <article><strong>Premium</strong><p>Higher plan marker for future feature limits.</p></article>
+              </div>
+            </section>
+          </section>
+
+          <section class="admin-module-view hidden" data-super-module="platform-settings">
+            <header class="topbar module-topbar">
+              <div>
+                <p class="eyebrow">Platform settings</p>
+                <h2>Super Admin setup</h2>
+              </div>
+              <button class="ghost-button" type="button" data-super-dashboard-link>Back to dashboard</button>
+            </header>
+            <section class="panel">
+              <div class="settings-grid">
+                <article><strong>First account</strong><p>Create your main user manually in Firebase with role super_admin.</p></article>
+                <article><strong>Isolation</strong><p>Every PG owner receives a separate pgId and only sees their own PG data.</p></article>
+                <article><strong>Billing later</strong><p>Plan and subscription fields are ready for Stripe or manual billing later.</p></article>
+              </div>
+            </section>
+          </section>
+        </section>
+
         <section id="adminView">
           <section class="admin-module-view" data-admin-module="dashboard">
             <header class="topbar">

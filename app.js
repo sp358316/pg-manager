@@ -12,17 +12,21 @@ const monthKey = getMonthKey(new Date());
 let firebaseApp;
 let auth;
 let currentUser = null;
-let state = { pg: null, profile: null, users: [], rooms: [], payments: [] };
+let state = { pg: null, profile: null, users: [], rooms: [], payments: [], pgs: [], owners: [] };
 let searchTerm = "";
 let selectedProperty = { floor: null, room: null, bed: null };
 let activeAdminModule = "dashboard";
+let activeSuperModule = "platform-dashboard";
 const mobileSectionsQuery = window.matchMedia("(max-width: 760px)");
 const adminModules = new Set(["dashboard", "admissions", "property", "residents", "payments", "documents", "reports", "settings"]);
+const superModules = new Set(["platform-dashboard", "pg-owners", "plans", "platform-settings"]);
 
 const authScreen = document.querySelector("#authScreen");
 const appShell = document.querySelector("#appShell");
+const superView = document.querySelector("#superView");
 const adminView = document.querySelector("#adminView");
 const residentView = document.querySelector("#residentView");
+const superNav = document.querySelector("#superNav");
 const adminNav = document.querySelector("#adminNav");
 const residentNav = document.querySelector("#residentNav");
 const emptyTemplate = document.querySelector("#emptyStateTemplate");
@@ -127,6 +131,23 @@ document.querySelector("#pgSettingsForm").addEventListener("submit", async (even
     });
     await loadPortal();
     showToast("PG information saved.");
+  });
+});
+
+document.querySelector("#pgOwnerForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  await withButtonLock(form.querySelector("button[type='submit']"), "Creating owner...", async () => {
+    await api("/api/super/pg-owners", {
+      method: "POST",
+      body: formToJson(form),
+    });
+    form.reset();
+    form.plan.value = "free";
+    form.status.value = "active";
+    form.subscriptionStatus.value = "trial";
+    await loadPortal();
+    showToast("PG owner account created. Share the temporary password.");
   });
 });
 
@@ -307,9 +328,46 @@ document.querySelector("#adminNav").addEventListener("click", (event) => {
   setAdminModule(link.dataset.adminModuleLink, true);
 });
 
+document.querySelector("#superNav").addEventListener("click", (event) => {
+  const link = event.target.closest("[data-super-module-link]");
+  if (!link) return;
+  event.preventDefault();
+  setSuperModule(link.dataset.superModuleLink, true);
+});
+
+document.querySelector("#superView").addEventListener("click", async (event) => {
+  const moduleLink = event.target.closest("[data-super-module-link]");
+  if (moduleLink) {
+    setSuperModule(moduleLink.dataset.superModuleLink, true);
+    return;
+  }
+
+  const dashboardLink = event.target.closest("[data-super-dashboard-link]");
+  if (dashboardLink) {
+    setSuperModule("platform-dashboard", true);
+    return;
+  }
+
+  const updateButton = event.target.closest("[data-update-owner]");
+  if (!updateButton) return;
+  const card = updateButton.closest("[data-owner-card]");
+  const ownerId = updateButton.dataset.updateOwner;
+  await withButtonLock(updateButton, "Saving...", async () => {
+    await api(`/api/super/pg-owners/${ownerId}/update`, {
+      method: "POST",
+      body: formToJson(card),
+    });
+    await loadPortal();
+    showToast("PG owner updated.");
+  });
+});
+
 window.addEventListener("hashchange", () => {
   if (state.profile?.role === "admin") {
     setAdminModule(getModuleFromHash(), false);
+  }
+  if (state.profile?.role === "super_admin") {
+    setSuperModule(getSuperModuleFromHash(), false);
   }
 });
 
@@ -333,7 +391,7 @@ async function boot() {
   onAuthStateChanged(auth, async (user) => {
     currentUser = user;
     if (!user) {
-      state = { pg: null, profile: null, users: [], rooms: [], payments: [] };
+      state = { pg: null, profile: null, users: [], rooms: [], payments: [], pgs: [], owners: [] };
       renderLoggedOut();
       return;
     }
@@ -372,19 +430,129 @@ function renderPortal() {
   document.querySelector("#signedInEmail").textContent = currentUser.email;
   document.querySelector("#portalPgName").textContent = state.pg?.name || profile.pgName || "PG Manager";
 
+  const isSuperAdmin = profile.role === "super_admin";
   const isAdmin = profile.role === "admin";
-  document.querySelector("#roleLabel").textContent = isAdmin ? "Admin portal" : "Resident portal";
+  document.querySelector("#roleLabel").textContent = isSuperAdmin ? "Super Admin" : isAdmin ? "Admin portal" : "Resident portal";
+  superView.classList.toggle("hidden", !isSuperAdmin);
   adminView.classList.toggle("hidden", !isAdmin);
-  residentView.classList.toggle("hidden", isAdmin);
+  residentView.classList.toggle("hidden", isAdmin || isSuperAdmin);
+  superNav.classList.toggle("hidden", !isSuperAdmin);
   adminNav.classList.toggle("hidden", !isAdmin);
-  residentNav.classList.toggle("hidden", isAdmin);
+  residentNav.classList.toggle("hidden", isAdmin || isSuperAdmin);
 
-  if (isAdmin) {
+  if (isSuperAdmin) {
+    activeSuperModule = getSuperModuleFromHash();
+    renderSuperAdmin();
+  } else if (isAdmin) {
     activeAdminModule = getModuleFromHash();
     renderAdmin();
   } else {
     renderResident();
   }
+}
+
+function renderSuperAdmin() {
+  renderSuperStats();
+  renderPgOwners();
+  renderSuperModuleView();
+}
+
+function renderSuperStats() {
+  const owners = state.owners || [];
+  const activeOwners = owners.filter((owner) => owner.status === "active" && !["suspended", "cancelled"].includes(owner.subscriptionStatus));
+  const suspended = owners.filter((owner) => owner.status !== "active" || ["suspended", "cancelled"].includes(owner.subscriptionStatus));
+  const residents = state.users.filter((user) => user.role === "resident");
+
+  document.querySelector("#superTotalPgs").textContent = state.pgs.length;
+  document.querySelector("#superActiveOwners").textContent = activeOwners.length;
+  document.querySelector("#superSuspendedPgs").textContent = suspended.length;
+  document.querySelector("#superTotalResidents").textContent = residents.length;
+}
+
+function renderPgOwners() {
+  const list = document.querySelector("#pgOwnerList");
+  list.replaceChildren();
+  if (!state.owners.length) {
+    list.append(emptyNotice("No PG owners yet", "Create a PG owner account to start onboarding PGs."));
+    return;
+  }
+
+  state.owners
+    .slice()
+    .sort((a, b) => a.pgName.localeCompare(b.pgName, undefined, { numeric: true }))
+    .forEach((owner) => {
+      const card = document.createElement("form");
+      card.className = "detail-card owner-management-card";
+      card.dataset.ownerCard = owner.id;
+      card.innerHTML = `
+        <div class="detail-card-head">
+          <div>
+            <strong>${escapeHtml(owner.pgName)}</strong>
+            <p>${escapeHtml(owner.name)} - ${escapeHtml(owner.email)}</p>
+          </div>
+          <span class="status-pill ${owner.status === "active" && !["suspended", "cancelled"].includes(owner.subscriptionStatus) ? "paid" : "due"}">${escapeHtml(
+        owner.subscriptionStatus
+      )}</span>
+        </div>
+        <div class="form-grid compact">
+          <label>Owner name <input name="name" type="text" value="${escapeAttr(owner.name)}" required /></label>
+          <label>Phone <input name="phone" type="tel" value="${escapeAttr(owner.phone)}" /></label>
+          <label>PG name <input name="pgName" type="text" value="${escapeAttr(owner.pgName)}" required /></label>
+          <label>Plan
+            <select name="plan">
+              ${optionHtml("free", "Free", owner.plan)}
+              ${optionHtml("basic", "Basic", owner.plan)}
+              ${optionHtml("premium", "Premium", owner.plan)}
+            </select>
+          </label>
+          <label>Status
+            <select name="status">
+              ${optionHtml("active", "Active", owner.status)}
+              ${optionHtml("inactive", "Inactive", owner.status)}
+            </select>
+          </label>
+          <label>Subscription
+            <select name="subscriptionStatus">
+              ${optionHtml("trial", "Trial", owner.subscriptionStatus)}
+              ${optionHtml("active", "Active", owner.subscriptionStatus)}
+              ${optionHtml("suspended", "Suspended", owner.subscriptionStatus)}
+              ${optionHtml("cancelled", "Cancelled", owner.subscriptionStatus)}
+            </select>
+          </label>
+          <label class="wide">PG address <textarea name="pgAddress" rows="2">${escapeHtml(owner.pgAddress)}</textarea></label>
+        </div>
+        <button class="secondary-action full" type="button" data-update-owner="${owner.id}">Save owner changes</button>
+      `;
+      list.append(card);
+    });
+}
+
+function getSuperModuleFromHash() {
+  const hash = window.location.hash.replace("#", "");
+  return superModules.has(hash) ? hash : "platform-dashboard";
+}
+
+function setSuperModule(moduleName, updateHash = false) {
+  activeSuperModule = superModules.has(moduleName) ? moduleName : "platform-dashboard";
+  renderSuperModuleView();
+
+  if (updateHash && window.location.hash !== `#${activeSuperModule}`) {
+    window.location.hash = activeSuperModule;
+  }
+
+  if (state.profile?.role === "super_admin") {
+    superView.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+function renderSuperModuleView() {
+  document.querySelectorAll("[data-super-module]").forEach((view) => {
+    view.classList.toggle("hidden", view.dataset.superModule !== activeSuperModule);
+  });
+
+  document.querySelectorAll("[data-super-module-link]").forEach((link) => {
+    link.classList.toggle("active", link.dataset.superModuleLink === activeSuperModule);
+  });
 }
 
 function renderAdmin() {
@@ -1248,4 +1416,12 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value);
+}
+
+function optionHtml(value, label, selectedValue) {
+  return `<option value="${escapeAttr(value)}" ${value === selectedValue ? "selected" : ""}>${escapeHtml(label)}</option>`;
 }

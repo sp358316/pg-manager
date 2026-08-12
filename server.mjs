@@ -2,6 +2,7 @@ import "dotenv/config";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, normalize, resolve } from "node:path";
+import { randomUUID } from "node:crypto";
 import admin from "firebase-admin";
 
 const root = process.cwd();
@@ -51,8 +52,30 @@ async function handleApi(request, response) {
 
   if (request.method === "GET" && url.pathname === "/api/bootstrap") {
     const session = await requireSession(request);
-    const data = session.profile.role === "admin" ? await getAdminBootstrap(session.profile) : await getResidentBootstrap(session.profile);
+    const data =
+      session.profile.role === "super_admin"
+        ? await getSuperBootstrap(session.profile)
+        : session.profile.role === "admin"
+          ? await getAdminBootstrap(session.profile)
+          : await getResidentBootstrap(session.profile);
     sendJson(response, 200, data);
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/super/pg-owners") {
+    await requireSuperAdmin(request);
+    const body = await readJson(request);
+    const owner = await createPgOwner(body);
+    sendJson(response, 201, { owner });
+    return;
+  }
+
+  const updateOwnerMatch = url.pathname.match(/^\/api\/super\/pg-owners\/([^/]+)\/update$/);
+  if (request.method === "POST" && updateOwnerMatch) {
+    await requireSuperAdmin(request);
+    const body = await readJson(request);
+    const owner = await updatePgOwner(updateOwnerMatch[1], body);
+    sendJson(response, 200, { owner });
     return;
   }
 
@@ -130,6 +153,95 @@ async function handleApi(request, response) {
   }
 
   sendJson(response, 404, { error: "API route not found." });
+}
+
+async function createPgOwner(body) {
+  const owner = validatePgOwner(body, true);
+  const pgId = `pg_${cryptoRandomId()}`;
+
+  let authUser;
+  try {
+    authUser = await admin.auth().createUser({
+      email: owner.email,
+      password: body.password,
+      displayName: owner.name,
+      emailVerified: false,
+      disabled: owner.status !== "active" || ["suspended", "cancelled"].includes(owner.subscriptionStatus),
+    });
+  } catch (error) {
+    if (error.code === "auth/email-already-exists") throw httpError(409, "This PG owner Gmail is already added.");
+    throw error;
+  }
+
+  const profile = {
+    id: authUser.uid,
+    uid: authUser.uid,
+    pgId,
+    pgName: owner.pgName,
+    name: owner.name,
+    email: owner.email,
+    phone: owner.phone,
+    role: "admin",
+    status: owner.status,
+    plan: owner.plan,
+    subscriptionStatus: owner.subscriptionStatus,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+  const pg = {
+    id: pgId,
+    name: owner.pgName,
+    address: owner.pgAddress,
+    ownerUid: authUser.uid,
+    plan: owner.plan,
+    subscriptionStatus: owner.subscriptionStatus,
+    status: owner.status,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  await Promise.all([
+    db.collection("users").doc(authUser.uid).set(profile),
+    db.collection("pgs").doc(pgId).set(pg),
+  ]);
+  return serializeOwner({ ...profile, createdAt: null, updatedAt: null }, { ...pg, createdAt: null, updatedAt: null });
+}
+
+async function updatePgOwner(ownerUid, body) {
+  const ownerRef = db.collection("users").doc(ownerUid);
+  const ownerSnapshot = await ownerRef.get();
+  if (!ownerSnapshot.exists) throw httpError(404, "PG owner not found.");
+  const existing = ownerSnapshot.data();
+  if (existing.role !== "admin") throw httpError(400, "Only PG owner accounts can be managed here.");
+
+  const update = validatePgOwnerUpdate(body);
+  const disabled = update.status !== "active" || ["suspended", "cancelled"].includes(update.subscriptionStatus);
+  const userUpdate = {
+    name: update.name,
+    phone: update.phone,
+    pgName: update.pgName,
+    status: update.status,
+    plan: update.plan,
+    subscriptionStatus: update.subscriptionStatus,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+  const pgUpdate = {
+    name: update.pgName,
+    address: update.pgAddress,
+    ownerUid,
+    status: update.status,
+    plan: update.plan,
+    subscriptionStatus: update.subscriptionStatus,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  await Promise.all([
+    ownerRef.set(userUpdate, { merge: true }),
+    db.collection("pgs").doc(existing.pgId).set(pgUpdate, { merge: true }),
+    admin.auth().updateUser(ownerUid, { displayName: update.name, disabled }),
+  ]);
+
+  return serializeOwner({ id: ownerUid, ...existing, ...userUpdate, updatedAt: null }, { id: existing.pgId, ...pgUpdate, updatedAt: null });
 }
 
 async function createResident(body, adminProfile) {
@@ -305,6 +417,28 @@ async function reviewPayment(paymentId, action, adminProfile) {
   );
 }
 
+async function getSuperBootstrap(profile) {
+  const [usersSnapshot, pgsSnapshot] = await Promise.all([
+    db.collection("users").get(),
+    db.collection("pgs").get(),
+  ]);
+  const users = usersSnapshot.docs.map((doc) => serializeDoc(doc.id, doc.data()));
+  const pgs = pgsSnapshot.docs.map((doc) => serializeDoc(doc.id, doc.data()));
+  const owners = users
+    .filter((user) => user.role === "admin")
+    .map((owner) => serializeOwner(owner, pgs.find((pg) => pg.id === owner.pgId) || null));
+
+  return {
+    pg: { id: "platform", name: "PG Manager", address: "" },
+    profile: serializeDoc(profile.id, profile),
+    users,
+    pgs,
+    owners,
+    rooms: [],
+    payments: [],
+  };
+}
+
 async function getAdminBootstrap(profile) {
   const [pg, usersSnapshot, roomsSnapshot, paymentsSnapshot] = await Promise.all([
     getPgProfile(profile.pgId),
@@ -336,9 +470,20 @@ async function getResidentBootstrap(profile) {
   };
 }
 
+async function requireSuperAdmin(request) {
+  const session = await requireSession(request);
+  if (session.profile.role !== "super_admin") throw httpError(403, "Super Admin access required.");
+  if (session.profile.status && session.profile.status !== "active") throw httpError(403, "Your Super Admin account is not active.");
+  return session;
+}
+
 async function requireAdmin(request) {
   const session = await requireSession(request);
   if (session.profile.role !== "admin") throw httpError(403, "Admin access required.");
+  if (session.profile.status !== "active") throw httpError(403, "This PG owner account is not active.");
+  if (["suspended", "cancelled"].includes(session.profile.subscriptionStatus)) {
+    throw httpError(403, "This PG owner subscription is not active.");
+  }
   return session;
 }
 
@@ -423,6 +568,7 @@ async function updatePgProfile(adminProfile, body) {
 
 async function ensurePgContext(uid, data) {
   const profile = { id: uid, ...data };
+  if (profile.role === "super_admin") return profile;
   if (profile.pgId) {
     if (profile.role === "admin") await ensurePgDoc(profile);
     return profile;
@@ -523,6 +669,39 @@ function roomDocId(pgId, roomNumber) {
 
 function createBedLabels(count) {
   return Array.from({ length: count }, (_, index) => `B${index + 1}`);
+}
+
+function validatePgOwner(body, requirePassword = false) {
+  const password = String(body.password || "");
+  if (requirePassword && password.length < 6) throw httpError(400, "Temporary password must be at least 6 characters.");
+  const owner = validatePgOwnerUpdate(body);
+  owner.email = clean(body.email).toLowerCase();
+  if (!owner.email.endsWith("@gmail.com")) throw httpError(400, "PG owner must use a Gmail address.");
+  return owner;
+}
+
+function validatePgOwnerUpdate(body) {
+  const owner = {
+    name: clean(body.name),
+    email: clean(body.email).toLowerCase(),
+    phone: clean(body.phone),
+    pgName: clean(body.pgName),
+    pgAddress: clean(body.pgAddress),
+    plan: clean(body.plan) || "free",
+    status: clean(body.status) || "active",
+    subscriptionStatus: clean(body.subscriptionStatus) || "trial",
+  };
+  const plans = new Set(["free", "basic", "premium"]);
+  const statuses = new Set(["active", "inactive"]);
+  const subscriptionStatuses = new Set(["active", "trial", "suspended", "cancelled"]);
+  if (!owner.name || !owner.pgName) throw httpError(400, "Owner name and PG name are required.");
+  if (owner.name.length > 80 || owner.pgName.length > 80) throw httpError(400, "Name fields must be under 80 characters.");
+  if (owner.phone.length > 30) throw httpError(400, "Phone must be under 30 characters.");
+  if (owner.pgAddress.length > 240) throw httpError(400, "PG address must be under 240 characters.");
+  if (!plans.has(owner.plan)) throw httpError(400, "Plan must be free, basic, or premium.");
+  if (!statuses.has(owner.status)) throw httpError(400, "Status must be active or inactive.");
+  if (!subscriptionStatuses.has(owner.subscriptionStatus)) throw httpError(400, "Subscription status is invalid.");
+  return owner;
 }
 
 function validateResident(body) {
@@ -655,6 +834,29 @@ function serializeDoc(id, data) {
       value && typeof value.toDate === "function" ? value.toDate().toISOString() : value,
     ])
   );
+}
+
+function serializeOwner(owner, pg) {
+  return {
+    id: owner.id || owner.uid,
+    uid: owner.uid || owner.id,
+    pgId: owner.pgId || pg?.id || "",
+    name: owner.name || "",
+    email: owner.email || "",
+    phone: owner.phone || "",
+    role: "admin",
+    status: owner.status || "active",
+    plan: owner.plan || pg?.plan || "free",
+    subscriptionStatus: owner.subscriptionStatus || pg?.subscriptionStatus || "trial",
+    pgName: pg?.name || owner.pgName || "My PG",
+    pgAddress: pg?.address || "",
+    createdAt: owner.createdAt || pg?.createdAt || null,
+    updatedAt: owner.updatedAt || pg?.updatedAt || null,
+  };
+}
+
+function cryptoRandomId() {
+  return randomUUID().replaceAll("-", "").slice(0, 18);
 }
 
 function getMonthKey(date) {
