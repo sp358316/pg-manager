@@ -303,6 +303,12 @@ main {
   min-width: 0;
 }
 
+.admin-module-view {
+  display: grid;
+  gap: 22px;
+  min-width: 0;
+}
+
 .topbar,
 .panel-heading,
 .table-heading,
@@ -401,6 +407,10 @@ main {
 }
 
 .module-card {
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   min-height: 150px;
   padding: 16px;
   border: 1px solid var(--line);
@@ -1165,6 +1175,16 @@ main {
   box-shadow: var(--shadow);
 }
 
+.module-card:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.24);
+  outline-offset: 3px;
+}
+
+.module-card.active {
+  border-color: rgba(13, 148, 136, 0.5);
+  box-shadow: 0 14px 34px rgba(13, 148, 136, 0.15);
+}
+
 .module-card::before {
   content: "";
   position: absolute;
@@ -1200,6 +1220,19 @@ main {
 
 .module-card.property .module-icon {
   background: linear-gradient(135deg, var(--violet), var(--blue));
+}
+
+.module-card.residents .module-icon,
+.module-card.residents {
+  border-top-color: rgba(20, 184, 166, 0.45);
+}
+
+.module-card.residents .module-icon {
+  background: linear-gradient(135deg, #14b8a6, var(--brand-dark));
+}
+
+.module-topbar .ghost-button {
+  min-width: 150px;
 }
 
 .panel-heading h3,

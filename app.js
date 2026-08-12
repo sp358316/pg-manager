@@ -15,7 +15,9 @@ let currentUser = null;
 let state = { profile: null, users: [], rooms: [], payments: [] };
 let searchTerm = "";
 let selectedProperty = { floor: null, room: null, bed: null };
+let activeAdminModule = "dashboard";
 const mobileSectionsQuery = window.matchMedia("(max-width: 760px)");
+const adminModules = new Set(["dashboard", "admissions", "property", "residents", "payments", "documents", "reports", "settings"]);
 
 const authScreen = document.querySelector("#authScreen");
 const appShell = document.querySelector("#appShell");
@@ -228,6 +230,18 @@ document.querySelector("#paymentForm").addEventListener("submit", async (event) 
 });
 
 document.querySelector("#adminView").addEventListener("click", (event) => {
+  const moduleLink = event.target.closest("[data-admin-module-link]");
+  if (moduleLink) {
+    setAdminModule(moduleLink.dataset.adminModuleLink, true);
+    return;
+  }
+
+  const dashboardLink = event.target.closest("[data-admin-dashboard-link]");
+  if (dashboardLink) {
+    setAdminModule("dashboard", true);
+    return;
+  }
+
   const toggle = event.target.closest("[data-mobile-section-toggle]");
   const heading = event.target.closest("[data-mobile-section-header]");
   if (!toggle && !heading) return;
@@ -250,11 +264,16 @@ document.querySelector("#adminView").addEventListener("keydown", (event) => {
 });
 
 document.querySelector("#adminNav").addEventListener("click", (event) => {
-  const link = event.target.closest("a[href^='#']");
+  const link = event.target.closest("[data-admin-module-link]");
   if (!link) return;
-  const target = document.querySelector(link.getAttribute("href"));
-  const panel = target?.closest(".mobile-section");
-  if (panel) setMobileSectionOpen(panel, true);
+  event.preventDefault();
+  setAdminModule(link.dataset.adminModuleLink, true);
+});
+
+window.addEventListener("hashchange", () => {
+  if (state.profile?.role === "admin") {
+    setAdminModule(getModuleFromHash(), false);
+  }
 });
 
 mobileSectionsQuery.addEventListener("change", () => {
@@ -322,8 +341,12 @@ function renderPortal() {
   adminNav.classList.toggle("hidden", !isAdmin);
   residentNav.classList.toggle("hidden", isAdmin);
 
-  if (isAdmin) renderAdmin();
-  else renderResident();
+  if (isAdmin) {
+    activeAdminModule = getModuleFromHash();
+    renderAdmin();
+  } else {
+    renderResident();
+  }
 }
 
 function renderAdmin() {
@@ -337,7 +360,36 @@ function renderAdmin() {
   renderDocuments();
   renderReports();
   renderAdminPayments();
+  renderAdminModuleView();
   setupMobileSections();
+}
+
+function getModuleFromHash() {
+  const hash = window.location.hash.replace("#", "");
+  return adminModules.has(hash) ? hash : "dashboard";
+}
+
+function setAdminModule(moduleName, updateHash = false) {
+  activeAdminModule = adminModules.has(moduleName) ? moduleName : "dashboard";
+  renderAdminModuleView();
+
+  if (updateHash && window.location.hash !== `#${activeAdminModule}`) {
+    window.location.hash = activeAdminModule;
+  }
+
+  if (state.profile?.role === "admin") {
+    adminView.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+function renderAdminModuleView() {
+  document.querySelectorAll("[data-admin-module]").forEach((view) => {
+    view.classList.toggle("hidden", view.dataset.adminModule !== activeAdminModule);
+  });
+
+  document.querySelectorAll("[data-admin-module-link]").forEach((link) => {
+    link.classList.toggle("active", link.dataset.adminModuleLink === activeAdminModule);
+  });
 }
 
 function renderPropertyForms() {
@@ -582,6 +634,7 @@ function renderBedOptions(roomSelect, bedSelect, selectedBed = bedSelect.value, 
 function openEditResident(residentId) {
   const resident = state.users.find((item) => item.id === residentId);
   if (!resident) return;
+  setAdminModule("residents", true);
 
   const form = document.querySelector("#editResidentForm");
   form.classList.remove("hidden");
@@ -797,49 +850,18 @@ function renderAdminPayments() {
 
 function setupMobileSections() {
   const panels = document.querySelectorAll("#adminView .panel");
-  const isMobile = mobileSectionsQuery.matches;
-  let hasOpenPanel = Array.from(panels).some(
-    (panel) => panel.classList.contains("mobile-section") && !panel.classList.contains("is-collapsed"),
-  );
-  panels.forEach((panel, index) => {
+  panels.forEach((panel) => {
     const heading = panel.querySelector(":scope > .panel-heading, :scope > .table-heading");
     const toggle = heading?.querySelector("[data-mobile-section-toggle]");
-
-    if (!isMobile) {
-      panel.classList.remove("mobile-section", "is-collapsed");
-      delete panel.dataset.mobileReady;
-      if (heading) {
-        delete heading.dataset.mobileSectionHeader;
-        heading.removeAttribute("role");
-        heading.removeAttribute("tabindex");
-        heading.removeAttribute("aria-expanded");
-      }
-      toggle?.remove();
-      return;
+    panel.classList.remove("mobile-section", "is-collapsed");
+    delete panel.dataset.mobileReady;
+    if (heading) {
+      delete heading.dataset.mobileSectionHeader;
+      heading.removeAttribute("role");
+      heading.removeAttribute("tabindex");
+      heading.removeAttribute("aria-expanded");
     }
-
-    if (!heading) return;
-    panel.classList.add("mobile-section");
-    heading.dataset.mobileSectionHeader = "true";
-    heading.setAttribute("role", "button");
-    heading.setAttribute("tabindex", "0");
-
-    let mobileToggle = toggle;
-    if (!mobileToggle) {
-      mobileToggle = document.createElement("button");
-      mobileToggle.type = "button";
-      mobileToggle.className = "mobile-section-toggle";
-      mobileToggle.dataset.mobileSectionToggle = "true";
-      heading.append(mobileToggle);
-    }
-
-    if (!panel.dataset.mobileReady) {
-      panel.dataset.mobileReady = "true";
-      const shouldOpen = !hasOpenPanel && index === 0;
-      if (shouldOpen) hasOpenPanel = true;
-      panel.classList.toggle("is-collapsed", !shouldOpen);
-    }
-    updateMobileSectionState(panel);
+    toggle?.remove();
   });
 }
 

@@ -62,14 +62,14 @@
         </div>
 
         <nav class="nav-list" id="adminNav">
-          <a href="#dashboard" class="nav-link active">Dashboard</a>
-          <a href="#modules" class="nav-link">Modules</a>
-          <a href="#newResident" class="nav-link">Admissions</a>
-          <a href="#propertySetup" class="nav-link">Property</a>
-          <a href="#residents" class="nav-link">Residents</a>
-          <a href="#approvals" class="nav-link">Approvals</a>
-          <a href="#adminPaymentsPanel" class="nav-link">Payments</a>
-          <a href="#reportsPanel" class="nav-link">Reports</a>
+          <a href="#dashboard" class="nav-link active" data-admin-module-link="dashboard">Dashboard</a>
+          <a href="#admissions" class="nav-link" data-admin-module-link="admissions">Admissions</a>
+          <a href="#property" class="nav-link" data-admin-module-link="property">Property</a>
+          <a href="#residents" class="nav-link" data-admin-module-link="residents">Residents</a>
+          <a href="#payments" class="nav-link" data-admin-module-link="payments">Payments</a>
+          <a href="#documents" class="nav-link" data-admin-module-link="documents">Documents</a>
+          <a href="#reports" class="nav-link" data-admin-module-link="reports">Reports</a>
+          <a href="#settings" class="nav-link" data-admin-module-link="settings">Settings</a>
         </nav>
 
         <nav class="nav-list hidden" id="residentNav">
@@ -88,74 +88,87 @@
 
       <main>
         <section id="adminView">
-          <header class="topbar">
-            <div>
-              <p class="eyebrow">Today</p>
-              <h2 id="todayLabel">PG operations</h2>
-            </div>
-            <button class="primary-action" id="notifyButton" type="button">
-              <span aria-hidden="true">!</span>
-              Check payment reminders
-            </button>
-          </header>
+          <section class="admin-module-view" data-admin-module="dashboard">
+            <header class="topbar">
+              <div>
+                <p class="eyebrow">Today</p>
+                <h2 id="todayLabel">PG operations</h2>
+              </div>
+              <span class="status-pill paid">Dashboard</span>
+            </header>
 
-          <section class="stats-grid" id="dashboard" aria-label="PG summary">
-            <article class="stat">
-              <span>Total residents</span>
-              <strong id="totalResidents">0</strong>
-              <small>Approved active tenants</small>
-            </article>
-            <article class="stat">
-              <span>Room occupancy</span>
-              <strong id="roomsOccupied">0</strong>
-              <small id="roomCapacity">0 of 0 beds occupied</small>
-            </article>
-            <article class="stat alert-stat">
-              <span>Pending payments</span>
-              <strong id="pendingApprovals">0</strong>
-              <small>Waiting for manual validation</small>
-            </article>
-            <article class="stat">
-              <span>Monthly collection</span>
-              <strong id="monthlyCollection">Rs 0</strong>
-              <small>Approved payments this month</small>
-            </article>
-          </section>
+            <section class="stats-grid" id="dashboard" aria-label="PG summary">
+              <article class="stat">
+                <span>Total residents</span>
+                <strong id="totalResidents">0</strong>
+                <small>Approved active tenants</small>
+              </article>
+              <article class="stat">
+                <span>Room occupancy</span>
+                <strong id="roomsOccupied">0</strong>
+                <small id="roomCapacity">0 of 0 beds occupied</small>
+              </article>
+              <article class="stat alert-stat">
+                <span>Pending payments</span>
+                <strong id="pendingApprovals">0</strong>
+                <small>Waiting for manual validation</small>
+              </article>
+              <article class="stat">
+                <span>Monthly collection</span>
+                <strong id="monthlyCollection">Rs 0</strong>
+                <small>Approved payments this month</small>
+              </article>
+            </section>
 
-          <section class="module-grid" id="modules" aria-label="Core modules">
-            <article class="module-card admissions">
+            <section class="module-grid" id="modules" aria-label="Core modules">
+              <button class="module-card admissions" type="button" data-admin-module-link="admissions">
               <span class="module-icon">+</span>
               <h3>Admissions</h3>
               <p>Add guest, personal/contact details, room and bed allotment, admission date, documents.</p>
-            </article>
-            <article class="module-card finance">
+              </button>
+              <button class="module-card finance" type="button" data-admin-module-link="payments">
               <span class="module-icon">Rs</span>
               <h3>Payment & Finance</h3>
               <p>Advance received, security deposit, rent collection, payment history, due and pending rent.</p>
-            </article>
-            <article class="module-card property">
+              </button>
+              <button class="module-card property" type="button" data-admin-module-link="property">
               <span class="module-icon">B</span>
               <h3>Property Structure</h3>
               <p>Floors, rooms floor-wise, beds room-wise, occupancy map and vacant bed view.</p>
-            </article>
-            <article class="module-card documents">
+              </button>
+              <button class="module-card documents" type="button" data-admin-module-link="documents">
               <span class="module-icon">ID</span>
               <h3>Documents</h3>
               <p>Aadhaar, ID proof, address proof, police verification and document expiry alerts.</p>
-            </article>
-            <article class="module-card reports">
+              </button>
+              <button class="module-card reports" type="button" data-admin-module-link="reports">
               <span class="module-icon">%</span>
               <h3>Reports & Dashboard</h3>
               <p>Occupancy, floor/room/bed status, rent collection, due payment and monthly summaries.</p>
-            </article>
-            <article class="module-card settings">
+              </button>
+              <button class="module-card settings" type="button" data-admin-module-link="settings">
               <span class="module-icon">*</span>
               <h3>Settings</h3>
               <p>PG information, rent/deposit rules, users, notifications and app preferences.</p>
-            </article>
+              </button>
+              <button class="module-card residents" type="button" data-admin-module-link="residents">
+                <span class="module-icon">P</span>
+                <h3>Residents</h3>
+                <p>Search, edit rent or deposit, update contact details, and manage active residents.</p>
+              </button>
+            </section>
           </section>
 
-          <section class="panel" id="propertySetup">
+          <section class="admin-module-view hidden" data-admin-module="property">
+            <header class="topbar module-topbar">
+              <div>
+                <p class="eyebrow">Property module</p>
+                <h2>Floors, rooms, and beds</h2>
+              </div>
+              <button class="ghost-button" type="button" data-admin-dashboard-link>Back to dashboard</button>
+            </header>
+
+            <section class="panel" id="propertySetup">
             <div class="panel-heading">
               <div>
                 <p class="eyebrow">Property setup</p>
@@ -187,9 +200,9 @@
                 <button class="secondary-action full" type="submit">Save room beds</button>
               </form>
             </div>
-          </section>
+            </section>
 
-          <section class="panel" id="propertyFlow">
+            <section class="panel" id="propertyFlow">
             <div class="panel-heading">
               <div>
                 <p class="eyebrow">Navigation flow</p>
@@ -219,9 +232,28 @@
                 <div id="guestDetailsCard" class="guest-details-card"></div>
               </section>
             </div>
+            </section>
+
+            <section class="panel" id="rooms">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Rooms</p>
+                  <h3>Occupancy view</h3>
+                </div>
+              </div>
+              <div id="roomGrid" class="room-grid"></div>
+            </section>
           </section>
 
-          <section class="work-grid">
+          <section class="admin-module-view hidden" data-admin-module="admissions">
+            <header class="topbar module-topbar">
+              <div>
+                <p class="eyebrow">Admissions module</p>
+                <h2>Add resident and assign bed</h2>
+              </div>
+              <button class="ghost-button" type="button" data-admin-dashboard-link>Back to dashboard</button>
+            </header>
+
             <form class="panel" id="manualResidentForm">
               <div class="panel-heading">
                 <div>
@@ -249,19 +281,18 @@
               <button class="primary-action full" type="submit">Create account and assign room</button>
               <p class="helper-text">Share the temporary password with the resident. They can reset it by Gmail later.</p>
             </form>
-
-            <section class="panel">
-              <div class="panel-heading">
-                <div>
-                  <p class="eyebrow">Notifications</p>
-                  <h3>Monthly payment reminders</h3>
-                </div>
-              </div>
-              <div id="notificationList" class="stack-list"></div>
-            </section>
           </section>
 
-          <section class="panel" id="residents">
+          <section class="admin-module-view hidden" data-admin-module="residents">
+            <header class="topbar module-topbar">
+              <div>
+                <p class="eyebrow">Residents module</p>
+                <h2>Resident register</h2>
+              </div>
+              <button class="ghost-button" type="button" data-admin-dashboard-link>Back to dashboard</button>
+            </header>
+
+            <section class="panel" id="residents">
             <div class="panel-heading table-heading">
               <div>
                 <p class="eyebrow">People</p>
@@ -311,9 +342,33 @@
               <button class="primary-action full" type="submit">Save updated details</button>
               <p class="helper-text">Use this when rent increases, mobile/address changes, or resident shifts room or bed.</p>
             </form>
+            </section>
           </section>
 
-          <section class="work-grid lower-grid">
+          <section class="admin-module-view hidden" data-admin-module="payments">
+            <header class="topbar module-topbar">
+              <div>
+                <p class="eyebrow">Payments module</p>
+                <h2>Approvals, reminders, and records</h2>
+              </div>
+              <button class="ghost-button" type="button" data-admin-dashboard-link>Back to dashboard</button>
+            </header>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Notifications</p>
+                  <h3>Monthly payment reminders</h3>
+                </div>
+                <button class="primary-action" id="notifyButton" type="button">
+                  <span aria-hidden="true">!</span>
+                  Check reminders
+                </button>
+              </div>
+              <div id="notificationList" class="stack-list"></div>
+            </section>
+
+            <section class="work-grid lower-grid">
             <section class="panel" id="approvals">
               <div class="panel-heading">
                 <div>
@@ -323,19 +378,28 @@
               </div>
               <div id="approvalList" class="stack-list"></div>
             </section>
+            </section>
 
-            <section class="panel" id="rooms">
-              <div class="panel-heading">
-                <div>
-                  <p class="eyebrow">Rooms</p>
-                  <h3>Occupancy view</h3>
-                </div>
+            <section class="panel" id="adminPaymentsPanel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Payment records</p>
+                <h3>All submitted payments</h3>
               </div>
-              <div id="roomGrid" class="room-grid"></div>
+            </div>
+            <div id="adminPaymentList" class="stack-list"></div>
             </section>
           </section>
 
-          <section class="work-grid lower-grid">
+          <section class="admin-module-view hidden" data-admin-module="documents">
+            <header class="topbar module-topbar">
+              <div>
+                <p class="eyebrow">Documents module</p>
+                <h2>Document control</h2>
+              </div>
+              <button class="ghost-button" type="button" data-admin-dashboard-link>Back to dashboard</button>
+            </header>
+
             <section class="panel" id="documentsPanel">
               <div class="panel-heading">
                 <div>
@@ -345,6 +409,16 @@
               </div>
               <div id="documentList" class="stack-list"></div>
             </section>
+          </section>
+
+          <section class="admin-module-view hidden" data-admin-module="reports">
+            <header class="topbar module-topbar">
+              <div>
+                <p class="eyebrow">Reports module</p>
+                <h2>Monthly summary</h2>
+              </div>
+              <button class="ghost-button" type="button" data-admin-dashboard-link>Back to dashboard</button>
+            </header>
 
             <section class="panel" id="reportsPanel">
               <div class="panel-heading">
@@ -357,17 +431,16 @@
             </section>
           </section>
 
-          <section class="panel" id="adminPaymentsPanel">
-            <div class="panel-heading">
+          <section class="admin-module-view hidden" data-admin-module="settings">
+            <header class="topbar module-topbar">
               <div>
-                <p class="eyebrow">Payment records</p>
-                <h3>All submitted payments</h3>
+                <p class="eyebrow">Settings module</p>
+                <h2>PG rules and notifications</h2>
               </div>
-            </div>
-            <div id="adminPaymentList" class="stack-list"></div>
-          </section>
+              <button class="ghost-button" type="button" data-admin-dashboard-link>Back to dashboard</button>
+            </header>
 
-          <section class="panel" id="settingsPanel">
+            <section class="panel" id="settingsPanel">
             <div class="panel-heading">
               <div>
                 <p class="eyebrow">Settings</p>
@@ -388,6 +461,7 @@
                 <p>In-app reminders are shown for rent dues, payment approvals, vacancies and document status.</p>
               </article>
             </div>
+            </section>
           </section>
         </section>
 
